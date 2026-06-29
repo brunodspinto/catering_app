@@ -144,12 +144,6 @@ form input:focus,form select:focus{border-color:var(--accent)}
 .calc-preview{margin-top:18px;background:var(--card);border:1px dashed var(--line);
   border-radius:12px;padding:14px;text-align:center;font-weight:700;color:var(--accent-2)}
 
-.seg{display:flex;gap:8px;background:var(--card);padding:5px;border-radius:12px;margin-bottom:6px}
-.seg-btn{flex:1;background:none;border:none;color:var(--muted);padding:10px;border-radius:9px;
-  font-weight:600;cursor:pointer}
-.seg-btn.active{background:var(--accent);color:#06281f}
-.seg-btn[data-tipo="saida"].active{background:var(--danger);color:#fff}
-
 /* ---------- SELETOR DE HORAS ---------- */
 .time-trigger{ width:100%; margin-top:6px; padding:14px; border-radius:12px;
   border:1px solid var(--line); background:var(--bg-2); color:var(--text);

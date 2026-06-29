@@ -1,7 +1,7 @@
 {
   "name": "Bandeja",
   "short_name": "Bandeja",
-  "description": "Gestão de serviços de catering e poupanças",
+  "description": "Gestão de serviços de catering",
   "lang": "pt-PT",
   "start_url": "./index.html",
   "scope": "./",

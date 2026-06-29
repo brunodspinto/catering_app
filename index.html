@@ -76,10 +76,6 @@
             <span class="stat-label">Horas no mês</span>
             <span class="stat-value" id="stat-horas">0h</span>
           </div>
-          <div class="card stat">
-            <span class="stat-label">Poupanças (saldo)</span>
-            <span class="stat-value money" id="stat-poupancas">0,00 €</span>
-          </div>
         </div>
 
         <h3 class="section-title">Ganho por quinta <span class="muted">(este mês)</span></h3>
@@ -106,16 +102,6 @@
         <p id="quintas-vazio" class="empty hidden">Ainda não tens quintas. Carrega no <b>+</b> para adicionar a primeira.</p>
       </section>
 
-      <!-- ---- POUPANÇAS ---- -->
-      <section id="view-poupancas" class="view hidden">
-        <div class="card stat big">
-          <span class="stat-label">Saldo atual</span>
-          <span class="stat-value money" id="poupancas-saldo">0,00 €</span>
-        </div>
-        <div id="poupancas-lista" class="list"></div>
-        <p id="poupancas-vazio" class="empty hidden">Sem movimentos. Carrega no <b>+</b> para adicionar.</p>
-      </section>
-
     </main>
 
     <!-- Botão flutuante adicionar -->
@@ -126,7 +112,6 @@
       <button class="nav-btn active" data-view="resumo"><span>📊</span>Resumo</button>
       <button class="nav-btn" data-view="servicos"><span>🧾</span>Serviços</button>
       <button class="nav-btn" data-view="quintas"><span>🏡</span>Quintas</button>
-      <button class="nav-btn" data-view="poupancas"><span>🐷</span>Poupanças</button>
     </nav>
   </div>
 
@@ -201,36 +186,6 @@
         </label>
         <div class="modal-actions">
           <button type="button" class="btn btn-ghost danger hidden" id="quinta-apagar">Apagar</button>
-          <button type="submit" class="btn btn-primary">Guardar</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Modal Poupança -->
-  <div id="modal-poupanca" class="modal hidden">
-    <div class="modal-box">
-      <div class="modal-head">
-        <h2>Novo movimento</h2>
-        <button class="icon-btn" data-close>✕</button>
-      </div>
-      <form id="form-poupanca">
-        <div class="seg">
-          <button type="button" class="seg-btn active" data-tipo="entrada">Entrada (+)</button>
-          <button type="button" class="seg-btn" data-tipo="saida">Saída (−)</button>
-        </div>
-        <input type="hidden" id="poupanca-tipo" value="entrada" />
-        <label>Valor (€)
-          <input type="number" id="poupanca-valor" step="0.01" min="0" required placeholder="0,00" />
-        </label>
-        <label>Data
-          <button type="button" class="date-trigger" data-target="poupanca-data" data-titulo="Data do movimento">Escolher data</button>
-          <input type="hidden" id="poupanca-data" />
-        </label>
-        <label>Descrição <span class="muted">opcional</span>
-          <input type="text" id="poupanca-descricao" placeholder="ex: poupança do mês" />
-        </label>
-        <div class="modal-actions">
           <button type="submit" class="btn btn-primary">Guardar</button>
         </div>
       </form>

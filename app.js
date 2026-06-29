@@ -16,7 +16,6 @@ if (configOK) {
 const state = {
   quintas: [],
   servicos: [],
-  poupancas: [],
   view: "resumo",
   filtroServico: "todos",
   mes: new Date(),            // mês mostrado no resumo
@@ -142,14 +141,12 @@ function traduzErro(msg) {
    CARREGAR DADOS
    ============================================================ */
 async function carregarTudo() {
-  const [q, s, p] = await Promise.all([
+  const [q, s] = await Promise.all([
     sb.from("quintas").select("*").order("nome"),
     sb.from("servicos").select("*").order("data", { ascending: false }),
-    sb.from("poupancas").select("*").order("data", { ascending: false }),
   ]);
   state.quintas = q.data || [];
   state.servicos = s.data || [];
-  state.poupancas = p.data || [];
   renderTudo();
 }
 
@@ -157,7 +154,6 @@ function renderTudo() {
   renderResumo();
   renderServicos();
   renderQuintas();
-  renderPoupancas();
 }
 
 /* ============================================================
@@ -182,7 +178,6 @@ function renderResumo() {
   $("#stat-ganho").textContent = fmtEUR(ganho);
   $("#stat-pendente").textContent = fmtEUR(pendente);
   $("#stat-horas").textContent = fmtHoras(horas);
-  $("#stat-poupancas").textContent = fmtEUR(saldoPoupancas());
 
   // por quinta
   const wrap = $("#resumo-por-quinta");
@@ -261,38 +256,6 @@ function renderQuintas() {
     </div>`).join("");
   $$("#quintas-lista [data-quinta]").forEach((el) => {
     el.addEventListener("click", () => abrirModalQuinta(el.dataset.quinta));
-  });
-}
-
-/* ============================================================
-   RENDER — POUPANÇAS
-   ============================================================ */
-function saldoPoupancas() {
-  return state.poupancas.reduce(
-    (acc, m) => acc + (m.tipo === "entrada" ? 1 : -1) * Number(m.valor), 0);
-}
-
-function renderPoupancas() {
-  $("#poupancas-saldo").textContent = fmtEUR(saldoPoupancas());
-  const wrap = $("#poupancas-lista");
-  $("#poupancas-vazio").classList.toggle("hidden", state.poupancas.length > 0);
-  wrap.innerHTML = state.poupancas.map((m) => {
-    const entrada = m.tipo === "entrada";
-    return `
-      <div class="item" data-poupanca="${m.id}">
-        <div class="left">
-          <div class="title">${escapeHtml(m.descricao || (entrada ? "Entrada" : "Saída"))}</div>
-          <div class="sub">${fmtData(m.data)}</div>
-        </div>
-        <div class="right">
-          <div class="amount" style="color:${entrada ? "var(--accent-2)" : "var(--danger)"}">
-            ${entrada ? "+" : "−"}${fmtEUR(m.valor)}
-          </div>
-        </div>
-      </div>`;
-  }).join("");
-  $$("#poupancas-lista [data-poupanca]").forEach((el) => {
-    el.addEventListener("click", () => apagarPoupanca(el.dataset.poupanca));
   });
 }
 
@@ -576,42 +539,6 @@ async function apagarQuinta() {
 }
 
 /* ============================================================
-   MODAL POUPANÇA
-   ============================================================ */
-function abrirModalPoupanca() {
-  $("#form-poupanca").reset();
-  $("#poupanca-tipo").value = "entrada";
-  $$("#modal-poupanca .seg-btn").forEach((b) =>
-    b.classList.toggle("active", b.dataset.tipo === "entrada"));
-  setData("poupanca-data", hojeISO());
-  abrirModal("#modal-poupanca");
-}
-
-async function guardarPoupanca(e) {
-  e.preventDefault();
-  const dados = {
-    tipo: $("#poupanca-tipo").value,
-    valor: Number($("#poupanca-valor").value) || 0,
-    data: $("#poupanca-data").value,
-    descricao: $("#poupanca-descricao").value.trim() || null,
-  };
-  if (dados.valor <= 0) { toast("Escreve um valor."); return; }
-  const { error } = await sb.from("poupancas").insert(dados);
-  if (error) { toast("Erro: " + error.message); return; }
-  fecharModais();
-  toast("Movimento guardado.");
-  await carregarTudo();
-}
-
-async function apagarPoupanca(id) {
-  if (!confirm("Apagar este movimento?")) return;
-  const { error } = await sb.from("poupancas").delete().eq("id", id);
-  if (error) { toast("Erro: " + error.message); return; }
-  toast("Movimento apagado.");
-  await carregarTudo();
-}
-
-/* ============================================================
    MODAIS — utilitários
    ============================================================ */
 function abrirModal(sel) { $(sel).classList.remove("hidden"); }
@@ -620,7 +547,7 @@ function fecharModais() { $$(".modal").forEach((m) => m.classList.add("hidden"))
 /* ============================================================
    NAVEGAÇÃO
    ============================================================ */
-const TITULOS = { resumo: "Resumo", servicos: "Serviços", quintas: "Quintas", poupancas: "Poupanças" };
+const TITULOS = { resumo: "Resumo", servicos: "Serviços", quintas: "Quintas" };
 
 function mudarView(v) {
   state.view = v;
@@ -634,7 +561,6 @@ function aoCarregarFab() {
   // o FAB cria conforme a secção
   switch (state.view) {
     case "quintas": abrirModalQuinta(); break;
-    case "poupancas": abrirModalPoupanca(); break;
     default: // resumo ou serviços
       if (!state.quintas.length) { mudarView("quintas"); abrirModalQuinta(); toast("Cria primeiro a tua quinta."); }
       else abrirModalServico();
@@ -708,13 +634,6 @@ function ligarEventos() {
 
   $("#form-quinta").addEventListener("submit", guardarQuinta);
   $("#quinta-apagar").addEventListener("click", apagarQuinta);
-
-  $("#form-poupanca").addEventListener("submit", guardarPoupanca);
-  $$("#modal-poupanca .seg-btn").forEach((b) => b.addEventListener("click", () => {
-    $$("#modal-poupanca .seg-btn").forEach((x) => x.classList.remove("active"));
-    b.classList.add("active");
-    $("#poupanca-tipo").value = b.dataset.tipo;
-  }));
 }
 
 function mostrarApp(logado) {

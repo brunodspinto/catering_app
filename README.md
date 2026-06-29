@@ -1,14 +1,13 @@
 # Bandeja 🍽️
 
-App (site) para gerires os teus serviços de catering nas quintas e as tuas poupanças.
+App (site) para gerires os teus serviços de catering nas quintas.
 Funciona no **telemóvel** e no **PC**, com tudo guardado **online** (Supabase) e sincronizado.
 
 ## O que tem
 - 🔒 **Login com email e senha** (só tu vês os teus dados)
-- 📊 **Resumo** do mês: ganho, por receber, horas e saldo de poupanças
+- 📊 **Resumo** do mês: ganho, por receber e horas
 - 🧾 **Serviços**: quinta + data + horas → calcula sozinho (até passa da meia-noite), com gorjetas e estado **pago/por receber**
 - 🏡 **Quintas**: menu para criar e alterar quintas e o valor à hora de cada uma
-- 🐷 **Poupanças**: entradas e saídas com saldo atual
 
 ---
 
