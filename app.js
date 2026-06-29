@@ -1,5 +1,5 @@
 /* ============================================================
-   QuintaConta — Lógica da aplicação
+   Bandeja — Lógica da aplicação
    ============================================================ */
 
 // ---------- Ligação ao Supabase ----------
@@ -306,7 +306,7 @@ function preencherSelectQuintas(selId) {
     return;
   }
   sel.innerHTML = state.quintas
-    .map((q) => `<option value="${q.id}">${escapeHtml(q.nome)} — ${fmtEUR(q.valor_hora)}/h</option>`)
+    .map((q) => `<option value="${q.id}">${escapeHtml(q.nome)}</option>`)
     .join("");
   if (selId) sel.value = selId;
 }

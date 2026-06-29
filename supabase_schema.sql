@@ -1,5 +1,5 @@
 -- ============================================================
---  QuintaConta — Esquema da base de dados
+--  Bandeja — Esquema da base de dados
 --  COMO USAR:
 --   1. Entra no teu projeto Supabase
 --   2. Menu lateral: "SQL Editor"  ->  "New query"

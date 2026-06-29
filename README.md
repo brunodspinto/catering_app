@@ -1,4 +1,4 @@
-# QuintaConta 🏡€
+# Bandeja 🍽️
 
 App (site) para gerires os teus serviços de catering nas quintas e as tuas poupanças.
 Funciona no **telemóvel** e no **PC**, com tudo guardado **online** (Supabase) e sincronizado.
