@@ -1,0 +1,15 @@
+{
+  "name": "QuintaConta",
+  "short_name": "QuintaConta",
+  "description": "Gestão de serviços de catering e poupanças",
+  "lang": "pt-PT",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1419",
+  "theme_color": "#0f1419",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -1,0 +1,11 @@
+# Lixo do sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs e temporários
+*.log
+*.tmp
+
+# Dependências (caso um dia uses npm)
+node_modules/
