@@ -16,6 +16,7 @@ if (configOK) {
 const state = {
   quintas: [],
   servicos: [],
+  user: null,
   view: "resumo",
   filtroServico: "todos",
   mes: new Date(),            // mês mostrado no resumo
@@ -154,6 +155,7 @@ function renderTudo() {
   renderResumo();
   renderServicos();
   renderQuintas();
+  renderConta();
 }
 
 /* ============================================================
@@ -547,7 +549,7 @@ function fecharModais() { $$(".modal").forEach((m) => m.classList.add("hidden"))
 /* ============================================================
    NAVEGAÇÃO
    ============================================================ */
-const TITULOS = { resumo: "Resumo", servicos: "Serviços", quintas: "Quintas" };
+const TITULOS = { resumo: "Resumo", servicos: "Serviços", quintas: "Quintas", conta: "Conta" };
 
 function mudarView(v) {
   state.view = v;
@@ -555,6 +557,7 @@ function mudarView(v) {
   $(`#view-${v}`).classList.remove("hidden");
   $$(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === v));
   $("#view-title").textContent = TITULOS[v];
+  $("#fab").classList.toggle("hidden", v === "conta");   // não há "+" na Conta
 }
 
 function aoCarregarFab() {
@@ -565,6 +568,73 @@ function aoCarregarFab() {
       if (!state.quintas.length) { mudarView("quintas"); abrirModalQuinta(); toast("Cria primeiro a tua quinta."); }
       else abrirModalServico();
   }
+}
+
+/* ============================================================
+   CONTA — estatísticas e palavra-passe
+   ============================================================ */
+function renderConta() {
+  if (state.user) $("#conta-email").textContent = state.user.email || "—";
+
+  let ganho = 0, pendente = 0, horas = 0;
+  const porQuinta = {};
+  for (const s of state.servicos) {
+    const t = totalServico(s);
+    const h = calcHoras(s.hora_inicio, s.hora_fim);
+    ganho += t; horas += h;
+    if (s.estado === "pendente") pendente += t;
+    const nome = s.quinta_nome || "—";
+    if (!porQuinta[nome]) porQuinta[nome] = { count: 0, ganho: 0, horas: 0 };
+    porQuinta[nome].count++;
+    porQuinta[nome].ganho += t;
+    porQuinta[nome].horas += h;
+  }
+
+  $("#conta-ganho").textContent = fmtEUR(ganho);
+  $("#conta-horas").textContent = fmtHoras(horas);
+  $("#conta-num").textContent = state.servicos.length;
+  $("#conta-pendente").textContent = fmtEUR(pendente);
+
+  const entradas = Object.entries(porQuinta).sort((a, b) => b[1].ganho - a[1].ganho);
+  const wrap = $("#conta-por-quinta");
+  wrap.innerHTML = entradas.length
+    ? entradas.map(([nome, v]) => `
+        <div class="item" style="cursor:default">
+          <div class="left">
+            <div class="title">${escapeHtml(nome)}</div>
+            <div class="sub">${v.count} ${v.count === 1 ? "vez" : "vezes"} · ${fmtHoras(v.horas)}</div>
+          </div>
+          <div class="right"><span class="amount money">${fmtEUR(v.ganho)}</span></div>
+        </div>`).join("")
+    : `<p class="empty">Ainda sem serviços.</p>`;
+}
+
+async function trocarPassword(e) {
+  e.preventDefault();
+  const atual = $("#pw-atual").value;
+  const nova = $("#pw-nova").value;
+  const nova2 = $("#pw-nova2").value;
+  if (nova.length < 6) { toast("A nova palavra-passe tem de ter pelo menos 6 caracteres."); return; }
+  if (nova !== nova2) { toast("A confirmação não coincide com a nova palavra-passe."); return; }
+  if (!state.user) { toast("Sessão não encontrada. Entra de novo."); return; }
+
+  const btn = $("#form-password button[type=submit]");
+  btn.disabled = true; btn.textContent = "A alterar…";
+
+  // 1) confirmar a palavra-passe ATUAL
+  const { error: e1 } = await sb.auth.signInWithPassword({ email: state.user.email, password: atual });
+  if (e1) {
+    toast("A palavra-passe atual está errada.");
+    btn.disabled = false; btn.textContent = "Alterar palavra-passe";
+    return;
+  }
+  // 2) definir a NOVA
+  const { error: e2 } = await sb.auth.updateUser({ password: nova });
+  btn.disabled = false; btn.textContent = "Alterar palavra-passe";
+  if (e2) { toast("Erro: " + e2.message); return; }
+
+  $("#form-password").reset();
+  toast("Palavra-passe alterada! ✅");
 }
 
 /* ============================================================
@@ -634,6 +704,10 @@ function ligarEventos() {
 
   $("#form-quinta").addEventListener("submit", guardarQuinta);
   $("#quinta-apagar").addEventListener("click", apagarQuinta);
+
+  // conta
+  $("#form-password").addEventListener("submit", trocarPassword);
+  $("#conta-logout").addEventListener("click", () => sb.auth.signOut());
 }
 
 function mostrarApp(logado) {
@@ -653,9 +727,11 @@ async function init() {
   // reagir a login/logout
   sb.auth.onAuthStateChange((_evt, session) => {
     if (session) {
+      state.user = session.user;
       mostrarApp(true);
       carregarTudo();
     } else {
+      state.user = null;
       mostrarApp(false);
     }
   });
@@ -663,6 +739,7 @@ async function init() {
   // sessão já existente?
   const { data } = await sb.auth.getSession();
   if (data.session) {
+    state.user = data.session.user;
     mostrarApp(true);
     carregarTudo();
   } else {

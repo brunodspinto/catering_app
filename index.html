@@ -102,6 +102,52 @@
         <p id="quintas-vazio" class="empty hidden">Ainda não tens quintas. Carrega no <b>+</b> para adicionar a primeira.</p>
       </section>
 
+      <!-- ---- CONTA ---- -->
+      <section id="view-conta" class="view hidden">
+        <div class="card stat big">
+          <span class="stat-label">Sessão iniciada como</span>
+          <span class="stat-value" id="conta-email" style="font-size:1.05rem;word-break:break-all">—</span>
+        </div>
+
+        <div class="cards-grid">
+          <div class="card stat">
+            <span class="stat-label">Total ganho</span>
+            <span class="stat-value money" id="conta-ganho">0,00 €</span>
+          </div>
+          <div class="card stat">
+            <span class="stat-label">Total de horas</span>
+            <span class="stat-value" id="conta-horas">0h</span>
+          </div>
+          <div class="card stat">
+            <span class="stat-label">Serviços feitos</span>
+            <span class="stat-value" id="conta-num">0</span>
+          </div>
+          <div class="card stat">
+            <span class="stat-label">Por receber</span>
+            <span class="stat-value warn" id="conta-pendente">0,00 €</span>
+          </div>
+        </div>
+
+        <h3 class="section-title">Por quinta <span class="muted">(desde sempre)</span></h3>
+        <div id="conta-por-quinta" class="list"></div>
+
+        <h3 class="section-title">Alterar palavra-passe</h3>
+        <form id="form-password" class="card">
+          <label>Palavra-passe atual
+            <input type="password" id="pw-atual" required autocomplete="current-password" placeholder="••••••••" />
+          </label>
+          <label>Nova palavra-passe
+            <input type="password" id="pw-nova" required minlength="6" autocomplete="new-password" placeholder="mínimo 6 caracteres" />
+          </label>
+          <label>Confirmar nova palavra-passe
+            <input type="password" id="pw-nova2" required minlength="6" autocomplete="new-password" placeholder="repete a nova" />
+          </label>
+          <button type="submit" class="btn btn-primary btn-block" style="margin-top:18px">Alterar palavra-passe</button>
+        </form>
+
+        <button id="conta-logout" class="btn btn-ghost btn-block" style="margin-top:18px">Terminar sessão</button>
+      </section>
+
     </main>
 
     <!-- Botão flutuante adicionar -->
@@ -112,6 +158,7 @@
       <button class="nav-btn active" data-view="resumo"><span>📊</span>Resumo</button>
       <button class="nav-btn" data-view="servicos"><span>🧾</span>Serviços</button>
       <button class="nav-btn" data-view="quintas"><span>🏡</span>Quintas</button>
+      <button class="nav-btn" data-view="conta"><span>👤</span>Conta</button>
     </nav>
   </div>
 
