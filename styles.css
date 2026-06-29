@@ -42,10 +42,8 @@ a{color:var(--accent);text-decoration:none}
   border-radius:var(--radius);padding:28px 24px;box-shadow:var(--shadow)}
 .brand{text-align:center;margin-bottom:22px}
 .brand h1{margin:10px 0 2px;font-size:1.5rem}
-.brand-logo{display:inline-flex;align-items:center;justify-content:center;
-  width:56px;height:56px;border-radius:18px;background:linear-gradient(135deg,var(--accent),var(--accent-2));
-  color:#06281f;font-weight:800;font-size:1.8rem}
-.brand-logo.small{width:30px;height:30px;font-size:1rem;border-radius:9px}
+.brand-logo{display:inline-block;vertical-align:middle;width:56px;height:56px;border-radius:16px}
+.brand-logo.small{width:30px;height:30px;border-radius:9px}
 
 form label{display:block;margin:12px 0 0;font-size:.85rem;color:var(--muted)}
 form input,form select{
