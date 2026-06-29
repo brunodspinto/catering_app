@@ -150,6 +150,59 @@ form input:focus,form select:focus{border-color:var(--accent)}
 .seg-btn.active{background:var(--accent);color:#06281f}
 .seg-btn[data-tipo="saida"].active{background:var(--danger);color:#fff}
 
+/* ---------- SELETOR DE HORAS ---------- */
+.time-trigger{ width:100%; margin-top:6px; padding:14px; border-radius:12px;
+  border:1px solid var(--line); background:var(--bg-2); color:var(--text);
+  font-size:1.25rem; font-weight:800; letter-spacing:2px; text-align:center; cursor:pointer }
+.time-trigger:active{ border-color:var(--accent) }
+
+.tp{ position:fixed; inset:0; z-index:60; display:flex; align-items:flex-end; justify-content:center;
+  background:rgba(0,0,0,.6) }
+.tp-box{ width:100%; max-width:560px; background:var(--bg-2); border:1px solid var(--line);
+  border-radius:22px 22px 0 0; padding:18px; animation:slideUp .2s ease }
+.tp-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px }
+.tp-head strong{ font-size:1.15rem }
+.tp-cols{ display:flex; align-items:center; justify-content:center; gap:10px }
+.tp-cap{ flex:1; max-width:130px; text-align:center; color:var(--muted); font-size:.75rem;
+  text-transform:uppercase; letter-spacing:1px }
+.tp-cols + .tp-cols{ margin-top:4px; margin-bottom:16px }
+.tp-col{ position:relative; height:220px; overflow-y:auto; flex:1; max-width:130px;
+  scroll-snap-type:y proximity; border:1px solid var(--line); border-radius:14px;
+  background:var(--card); padding:88px 0; -webkit-overflow-scrolling:touch }
+.tp-col::-webkit-scrollbar{ width:0 }
+.tp-sep{ font-size:1.7rem; font-weight:800; color:var(--muted) }
+.tp-item{ height:44px; display:flex; align-items:center; justify-content:center;
+  font-size:1.5rem; font-weight:700; color:var(--muted); scroll-snap-align:center; cursor:pointer }
+.tp-item.sel{ color:#06281f; background:var(--accent-2); border-radius:10px; margin:0 14px }
+
+/* ---------- SELETOR DE DATA (calendário) ---------- */
+.date-trigger{ width:100%; margin-top:6px; padding:13px 14px; border-radius:12px;
+  border:1px solid var(--line); background:var(--bg-2); color:var(--text);
+  font-size:1.05rem; font-weight:700; text-align:left; cursor:pointer;
+  display:flex; align-items:center; justify-content:space-between }
+.date-trigger::after{ content:"📅"; font-size:1.05rem; margin-left:8px }
+.date-trigger:active{ border-color:var(--accent) }
+
+.dp{ position:fixed; inset:0; z-index:60; display:flex; align-items:flex-end; justify-content:center;
+  background:rgba(0,0,0,.6) }
+.dp-box{ width:100%; max-width:560px; background:var(--bg-2); border:1px solid var(--line);
+  border-radius:22px 22px 0 0; padding:18px; animation:slideUp .2s ease }
+.dp-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px }
+.dp-head strong{ font-size:1.15rem }
+.dp-week{ display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); margin-bottom:8px }
+.dp-week span{ text-align:center; color:var(--muted); font-size:.72rem;
+  text-transform:uppercase; letter-spacing:.5px; min-width:0 }
+.dp-grid{ display:grid; grid-template-columns:repeat(7, minmax(0,1fr));
+  grid-auto-rows:44px; gap:5px }
+.dp-cell{ height:44px; min-width:0; display:flex; align-items:center; justify-content:center;
+  border-radius:10px; font-weight:700; cursor:pointer; color:var(--text) }
+.dp-cell.empty{ visibility:hidden; cursor:default }
+.dp-cell.today{ border:1.5px solid var(--accent) }
+.dp-cell.sel{ background:var(--accent-2); color:#06281f }
+.dp-cell:active{ background:var(--card-2) }
+.dp-actions{ display:flex; gap:12px; margin-top:16px }
+.dp-actions .btn{ flex:1 }
+
 /* ---------- TOAST ---------- */
 .toast{position:fixed;bottom:160px;left:50%;transform:translateX(-50%);z-index:80;
   background:var(--card-2);border:1px solid var(--line);color:var(--text);

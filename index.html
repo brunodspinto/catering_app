@@ -145,14 +145,17 @@
           <select id="servico-quinta" required></select>
         </label>
         <label>Data
-          <input type="date" id="servico-data" required />
+          <button type="button" class="date-trigger" data-target="servico-data" data-titulo="Data do serviço">Escolher data</button>
+          <input type="hidden" id="servico-data" />
         </label>
         <div class="row">
           <label>Entrada
-            <input type="time" id="servico-inicio" required />
+            <button type="button" class="time-trigger" data-target="servico-inicio" data-titulo="Hora de entrada">--:--</button>
+            <input type="hidden" id="servico-inicio" />
           </label>
           <label>Saída
-            <input type="time" id="servico-fim" required />
+            <button type="button" class="time-trigger" data-target="servico-fim" data-titulo="Hora de saída">--:--</button>
+            <input type="hidden" id="servico-fim" />
           </label>
         </div>
         <label>Gorjeta / extra (€) <span class="muted">opcional</span>
@@ -221,7 +224,8 @@
           <input type="number" id="poupanca-valor" step="0.01" min="0" required placeholder="0,00" />
         </label>
         <label>Data
-          <input type="date" id="poupanca-data" required />
+          <button type="button" class="date-trigger" data-target="poupanca-data" data-titulo="Data do movimento">Escolher data</button>
+          <input type="hidden" id="poupanca-data" />
         </label>
         <label>Descrição <span class="muted">opcional</span>
           <input type="text" id="poupanca-descricao" placeholder="ex: poupança do mês" />
@@ -230,6 +234,43 @@
           <button type="submit" class="btn btn-primary">Guardar</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Seletor de data (calendário) -->
+  <div id="date-picker" class="dp hidden">
+    <div class="dp-box">
+      <div class="dp-head">
+        <button type="button" class="icon-btn" id="dp-prev">‹</button>
+        <strong id="dp-month">—</strong>
+        <button type="button" class="icon-btn" id="dp-next">›</button>
+      </div>
+      <div class="dp-week" id="dp-week"></div>
+      <div class="dp-grid" id="dp-grid"></div>
+      <div class="dp-actions">
+        <button type="button" class="btn btn-ghost" id="dp-today">Hoje</button>
+        <button type="button" class="btn btn-ghost" id="dp-close-btn">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Seletor de horas (estilo iPhone) -->
+  <div id="time-picker" class="tp hidden">
+    <div class="tp-box">
+      <div class="tp-head">
+        <strong id="tp-title">Hora</strong>
+        <button type="button" class="icon-btn" id="tp-close">✕</button>
+      </div>
+      <div class="tp-cols">
+        <span class="tp-cap">horas</span>
+        <span class="tp-cap">min</span>
+      </div>
+      <div class="tp-cols">
+        <div class="tp-col" id="tp-hours"></div>
+        <div class="tp-sep">:</div>
+        <div class="tp-col" id="tp-mins"></div>
+      </div>
+      <button type="button" class="btn btn-primary btn-block" id="tp-ok">Pronto</button>
     </div>
   </div>
 

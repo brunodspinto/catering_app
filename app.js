@@ -321,14 +321,16 @@ function abrirModalServico(id) {
 
   if (novo) {
     preencherSelectQuintas();
-    $("#servico-data").value = hojeISO();
+    setData("servico-data", hojeISO());
+    setHora("servico-inicio", "");
+    setHora("servico-fim", "");
   } else {
     const s = state.editandoServico;
     if (!s) return;
     preencherSelectQuintas(s.quinta_id);
-    $("#servico-data").value = s.data;
-    $("#servico-inicio").value = s.hora_inicio?.slice(0, 5);
-    $("#servico-fim").value = s.hora_fim?.slice(0, 5);
+    setData("servico-data", s.data);
+    setHora("servico-inicio", s.hora_inicio ? s.hora_inicio.slice(0, 5) : "");
+    setHora("servico-fim", s.hora_fim ? s.hora_fim.slice(0, 5) : "");
     $("#servico-gorjeta").value = Number(s.gorjeta) || "";
     $("#servico-notas").value = s.notas || "";
     $("#servico-pago").checked = s.estado === "pago";
@@ -363,6 +365,9 @@ async function guardarServico(e) {
   const qid = $("#servico-quinta").value;
   const q = state.quintas.find((x) => x.id === qid);
   if (!q) { toast("Escolhe uma quinta."); return; }
+  if (!$("#servico-inicio").value || !$("#servico-fim").value) {
+    toast("Escolhe a hora de entrada e de saída."); return;
+  }
 
   const dados = {
     quinta_id: qid,
@@ -396,6 +401,127 @@ async function apagarServico() {
   toast("Serviço apagado.");
   await carregarTudo();
 }
+
+/* ============================================================
+   SELETOR DE HORAS (estilo iPhone)
+   ============================================================ */
+const TP = { input: null, trigger: null, h: 18, m: 0 };
+const pad2 = (n) => String(n).padStart(2, "0");
+
+// escreve a hora no campo escondido e no botão visível
+function setHora(inputId, val) {
+  $("#" + inputId).value = val || "";
+  const trg = document.querySelector(`.time-trigger[data-target="${inputId}"]`);
+  if (trg) trg.textContent = val || "--:--";
+}
+
+function tpConstruirColuna(col, max, sel, onPick) {
+  col.innerHTML = "";
+  for (let i = 0; i < max; i++) {
+    const it = document.createElement("div");
+    it.className = "tp-item" + (i === sel ? " sel" : "");
+    it.textContent = pad2(i);
+    it.addEventListener("click", () => onPick(i));
+    col.appendChild(it);
+  }
+}
+function tpCentrar(col, idx, smooth) {
+  col.scrollTo({ top: idx * 44, behavior: smooth ? "smooth" : "auto" });
+}
+function tpMarcar(col, idx) {
+  col.querySelectorAll(".tp-item").forEach((el, i) => el.classList.toggle("sel", i === idx));
+}
+function tpAplicar() {
+  const val = `${pad2(TP.h)}:${pad2(TP.m)}`;
+  TP.input.value = val;
+  TP.trigger.textContent = val;
+  atualizarPreviewServico();
+}
+
+function abrirTimePicker(trigger) {
+  TP.trigger = trigger;
+  TP.input = $("#" + trigger.dataset.target);
+  $("#tp-title").textContent = trigger.dataset.titulo || "Hora";
+
+  const atual = TP.input.value;
+  if (atual && atual.includes(":")) {
+    const [h, m] = atual.split(":").map(Number);
+    TP.h = h; TP.m = m;
+  } else { TP.h = 18; TP.m = 0; }
+
+  const colH = $("#tp-hours"), colM = $("#tp-mins");
+  tpConstruirColuna(colH, 24, TP.h, (i) => { TP.h = i; tpMarcar(colH, i); tpCentrar(colH, i, true); tpAplicar(); });
+  tpConstruirColuna(colM, 60, TP.m, (i) => { TP.m = i; tpMarcar(colM, i); tpCentrar(colM, i, true); tpAplicar(); });
+
+  $("#time-picker").classList.remove("hidden");
+  requestAnimationFrame(() => { tpCentrar(colH, TP.h, false); tpCentrar(colM, TP.m, false); });
+}
+function fecharTimePicker() { $("#time-picker").classList.add("hidden"); }
+
+/* ============================================================
+   SELETOR DE DATA (calendário)
+   ============================================================ */
+const DP = { input: null, trigger: null, view: new Date(), selected: null };
+const DIAS_SEMANA = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+
+function fmtDataBotao(iso) {
+  if (!iso) return "Escolher data";
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  const s = dt.toLocaleDateString("pt-PT", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function setData(inputId, iso) {
+  $("#" + inputId).value = iso || "";
+  const trg = document.querySelector(`.date-trigger[data-target="${inputId}"]`);
+  if (trg) trg.textContent = fmtDataBotao(iso);
+}
+
+function dpRender() {
+  const y = DP.view.getFullYear(), m = DP.view.getMonth();
+  const titulo = DP.view.toLocaleDateString("pt-PT", { month: "long", year: "numeric" });
+  $("#dp-month").textContent = titulo.charAt(0).toUpperCase() + titulo.slice(1);
+  $("#dp-week").innerHTML = DIAS_SEMANA.map((d) => `<span>${d}</span>`).join("");
+  const offset = (new Date(y, m, 1).getDay() + 6) % 7;   // semana começa à segunda
+  const dias = new Date(y, m + 1, 0).getDate();
+  const hoje = hojeISO();
+  let html = "";
+  for (let i = 0; i < offset; i++) html += `<div class="dp-cell empty"></div>`;
+  for (let d = 1; d <= dias; d++) {
+    const iso = `${y}-${pad2(m + 1)}-${pad2(d)}`;
+    const cls = ["dp-cell"];
+    if (iso === hoje) cls.push("today");
+    if (iso === DP.selected) cls.push("sel");
+    html += `<div class="${cls.join(" ")}" data-iso="${iso}">${d}</div>`;
+  }
+  $("#dp-grid").innerHTML = html;
+  $$("#dp-grid .dp-cell[data-iso]").forEach((c) =>
+    c.addEventListener("click", () => dpEscolher(c.dataset.iso)));
+}
+
+function dpEscolher(iso) {
+  DP.selected = iso;
+  setData(DP.trigger.dataset.target, iso);
+  fecharDatePicker();
+}
+
+function abrirDatePicker(trigger) {
+  DP.trigger = trigger;
+  DP.input = $("#" + trigger.dataset.target);
+  const cur = DP.input.value;
+  if (cur && cur.includes("-")) {
+    DP.selected = cur;
+    const [y, m] = cur.split("-").map(Number);
+    DP.view = new Date(y, m - 1, 1);
+  } else {
+    DP.selected = null;
+    DP.view = new Date();
+  }
+  dpRender();
+  $("#date-picker").classList.remove("hidden");
+}
+function fecharDatePicker() { $("#date-picker").classList.add("hidden"); }
 
 /* ============================================================
    MODAL QUINTA
@@ -457,7 +583,7 @@ function abrirModalPoupanca() {
   $("#poupanca-tipo").value = "entrada";
   $$("#modal-poupanca .seg-btn").forEach((b) =>
     b.classList.toggle("active", b.dataset.tipo === "entrada"));
-  $("#poupanca-data").value = hojeISO();
+  setData("poupanca-data", hojeISO());
   abrirModal("#modal-poupanca");
 }
 
@@ -563,8 +689,22 @@ function ligarEventos() {
   // formulários
   $("#form-servico").addEventListener("submit", guardarServico);
   $("#servico-apagar").addEventListener("click", apagarServico);
-  ["#servico-quinta", "#servico-inicio", "#servico-fim", "#servico-gorjeta"].forEach((s) =>
+  ["#servico-quinta", "#servico-gorjeta"].forEach((s) =>
     $(s).addEventListener("input", atualizarPreviewServico));
+
+  // seletor de horas próprio
+  $$(".time-trigger").forEach((b) => b.addEventListener("click", () => abrirTimePicker(b)));
+  $("#tp-ok").addEventListener("click", fecharTimePicker);
+  $("#tp-close").addEventListener("click", fecharTimePicker);
+  $("#time-picker").addEventListener("click", (e) => { if (e.target.id === "time-picker") fecharTimePicker(); });
+
+  // seletor de data (calendário)
+  $$(".date-trigger").forEach((b) => b.addEventListener("click", () => abrirDatePicker(b)));
+  $("#dp-prev").addEventListener("click", () => { DP.view = new Date(DP.view.getFullYear(), DP.view.getMonth() - 1, 1); dpRender(); });
+  $("#dp-next").addEventListener("click", () => { DP.view = new Date(DP.view.getFullYear(), DP.view.getMonth() + 1, 1); dpRender(); });
+  $("#dp-today").addEventListener("click", () => dpEscolher(hojeISO()));
+  $("#dp-close-btn").addEventListener("click", fecharDatePicker);
+  $("#date-picker").addEventListener("click", (e) => { if (e.target.id === "date-picker") fecharDatePicker(); });
 
   $("#form-quinta").addEventListener("submit", guardarQuinta);
   $("#quinta-apagar").addEventListener("click", apagarQuinta);
