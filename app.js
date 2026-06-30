@@ -131,10 +131,6 @@ function setupAuthUI() {
       btn.textContent = modoCriarConta ? "Criar conta" : "Entrar";
     }
   });
-
-  $("#logout-btn").addEventListener("click", async () => {
-    await sb.auth.signOut();
-  });
 }
 
 function showAuthError(msg) {
@@ -155,13 +151,34 @@ function traduzErro(msg) {
    CARREGAR DADOS
    ============================================================ */
 async function carregarTudo() {
-  const [q, s] = await Promise.all([
-    sb.from("quintas").select("*").order("nome"),
-    sb.from("servicos").select("*").order("data", { ascending: false }),
-  ]);
-  state.quintas = q.data || [];
-  state.servicos = s.data || [];
+  try {
+    const [q, s] = await Promise.all([
+      sb.from("quintas").select("*").order("nome"),
+      sb.from("servicos").select("*").order("data", { ascending: false }),
+    ]);
+    if (q.error || s.error) throw (q.error || s.error);
+    state.quintas = q.data || [];
+    state.servicos = s.data || [];
+    // guardar para uso offline
+    try {
+      localStorage.setItem("bandeja_cache",
+        JSON.stringify({ quintas: state.quintas, servicos: state.servicos }));
+    } catch (e) {}
+  } catch (err) {
+    // sem internet (ou erro de rede): mostrar a última cópia guardada
+    const cache = lerCache();
+    if (cache) {
+      state.quintas = cache.quintas || [];
+      state.servicos = cache.servicos || [];
+      toast("Sem internet — a mostrar os últimos dados guardados.");
+    }
+  }
   renderTudo();
+}
+
+function lerCache() {
+  try { return JSON.parse(localStorage.getItem("bandeja_cache")); }
+  catch (e) { return null; }
 }
 
 function renderTudo() {
@@ -762,16 +779,17 @@ function mostrarApp(logado) {
   $("#app").classList.toggle("hidden", !logado);
 }
 
-async function init() {
+function init() {
   setupAuthUI();
   ligarEventos();
+  registarServiceWorker();
 
   if (!configOK) {
     mostrarApp(false);
     return;
   }
 
-  // reagir a login/logout
+  // trata o login/logout E a sessão inicial (dispara "INITIAL_SESSION")
   sb.auth.onAuthStateChange((evt, session) => {
     if (evt === "PASSWORD_RECOVERY") {
       state.user = session ? session.user : null;
@@ -786,18 +804,15 @@ async function init() {
       carregarTudo();
     } else {
       state.user = null;
+      localStorage.removeItem("bandeja_cache");  // limpa dados offline ao sair
       mostrarApp(false);
     }
   });
+}
 
-  // sessão já existente?
-  const { data } = await sb.auth.getSession();
-  if (data.session) {
-    state.user = data.session.user;
-    mostrarApp(true);
-    carregarTudo();
-  } else {
-    mostrarApp(false);
+function registarServiceWorker() {
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
   }
 }
 
