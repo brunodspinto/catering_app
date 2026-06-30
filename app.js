@@ -17,6 +17,7 @@ const state = {
   quintas: [],
   servicos: [],
   user: null,
+  profile: null,
   view: "resumo",
   filtroServico: "todos",
   mes: new Date(),            // mês mostrado no resumo
@@ -91,6 +92,9 @@ function setupAuthUI() {
     $("#switch-text").textContent = modoCriarConta ? "Já tens conta?" : "Ainda não tens conta?";
     $("#switch-link").textContent = modoCriarConta ? "Entrar" : "Criar conta";
     $("#forgot-row").classList.toggle("hidden", modoCriarConta);
+    $(".signup-only").classList.toggle("hidden", !modoCriarConta);
+    $("#auth-email-label").textContent = modoCriarConta ? "Email" : "Email ou username";
+    $("#auth-email").placeholder = modoCriarConta ? "o-teu-email@exemplo.com" : "email ou username";
     $("#auth-error").classList.add("hidden");
   });
 
@@ -109,18 +113,38 @@ function setupAuthUI() {
   $("#auth-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!configOK) { showAuthError("Falta configurar o config.js (ver README)."); return; }
-    const email = $("#auth-email").value.trim();
     const password = $("#auth-password").value;
     const btn = $("#auth-submit");
     btn.disabled = true;
     btn.textContent = "A processar…";
     try {
       if (modoCriarConta) {
-        const { error } = await sb.auth.signUp({ email, password });
+        // ----- criar conta -----
+        const nome = $("#auth-nome").value.trim();
+        const apelido = $("#auth-apelido").value.trim();
+        const numero = $("#auth-numero").value.trim();
+        const username = $("#auth-username").value.trim();
+        const email = $("#auth-email").value.trim();
+        if (!nome) throw new Error("Escreve o teu nome.");
+        if (!email.includes("@")) throw new Error("Escreve um email válido.");
+        if (!/^[a-zA-Z0-9_.]{3,}$/.test(username))
+          throw new Error("Username inválido: mínimo 3 caracteres, só letras, números, _ ou .");
+        const { error } = await sb.auth.signUp({
+          email, password,
+          options: { data: { nome, apelido, numero: numero || null, username } },
+        });
         if (error) throw error;
         toast("Conta criada! Já podes entrar.");
-        // se a confirmação de email estiver desligada, já há sessão
       } else {
+        // ----- entrar (email OU username) -----
+        const id = $("#auth-email").value.trim();
+        let email = id;
+        if (!id.includes("@")) {
+          const { data: resolvido, error: rpcErr } = await sb.rpc("email_do_username", { uname: id });
+          if (rpcErr) throw rpcErr;
+          if (!resolvido) throw new Error("Não há nenhuma conta com esse username.");
+          email = resolvido;
+        }
         const { error } = await sb.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
@@ -140,8 +164,9 @@ function showAuthError(msg) {
 }
 
 function traduzErro(msg) {
-  if (/invalid login/i.test(msg)) return "Email ou senha errados.";
+  if (/invalid login/i.test(msg)) return "Email/username ou senha errados.";
   if (/already registered/i.test(msg)) return "Esse email já tem conta. Tenta entrar.";
+  if (/duplicate key|already exists|unique/i.test(msg)) return "Esse username já está a ser usado. Escolhe outro.";
   if (/confirm/i.test(msg)) return "Confirma o email antes de entrar (vê a tua caixa de correio).";
   if (/password/i.test(msg)) return "A senha tem de ter pelo menos 6 caracteres.";
   return msg;
@@ -152,17 +177,19 @@ function traduzErro(msg) {
    ============================================================ */
 async function carregarTudo() {
   try {
-    const [q, s] = await Promise.all([
+    const [q, s, p] = await Promise.all([
       sb.from("quintas").select("*").order("nome"),
       sb.from("servicos").select("*").order("data", { ascending: false }),
+      sb.from("profiles").select("*").eq("id", state.user.id).maybeSingle(),
     ]);
     if (q.error || s.error) throw (q.error || s.error);
     state.quintas = q.data || [];
     state.servicos = s.data || [];
+    state.profile = p.data || null;
     // guardar para uso offline
     try {
       localStorage.setItem("bandeja_cache",
-        JSON.stringify({ quintas: state.quintas, servicos: state.servicos }));
+        JSON.stringify({ quintas: state.quintas, servicos: state.servicos, profile: state.profile }));
     } catch (e) {}
   } catch (err) {
     // sem internet (ou erro de rede): mostrar a última cópia guardada
@@ -170,6 +197,7 @@ async function carregarTudo() {
     if (cache) {
       state.quintas = cache.quintas || [];
       state.servicos = cache.servicos || [];
+      state.profile = cache.profile || null;
       toast("Sem internet — a mostrar os últimos dados guardados.");
     }
   }
@@ -622,7 +650,14 @@ function aoCarregarFab() {
    CONTA — estatísticas e palavra-passe
    ============================================================ */
 function renderConta() {
-  if (state.user) $("#conta-email").textContent = state.user.email || "—";
+  // dados do perfil (com recurso aos metadados do registo, se ainda não houver perfil)
+  const pf = state.profile || {};
+  const meta = (state.user && state.user.user_metadata) || {};
+  $("#perfil-nome").value = pf.nome || meta.nome || "";
+  $("#perfil-apelido").value = pf.apelido || meta.apelido || "";
+  $("#perfil-numero").value = pf.numero || meta.numero || "";
+  $("#perfil-username").value = pf.username || meta.username || "";
+  $("#perfil-email").value = state.user ? state.user.email : (pf.email || "");
 
   let ganho = 0, pendente = 0, horas = 0;
   const porQuinta = {};
@@ -655,6 +690,27 @@ function renderConta() {
           <div class="right"><span class="amount money">${fmtEUR(v.ganho)}</span></div>
         </div>`).join("")
     : `<p class="empty">Ainda sem serviços.</p>`;
+}
+
+async function guardarPerfil(e) {
+  e.preventDefault();
+  if (!state.user) { toast("Sessão não encontrada."); return; }
+  const username = $("#perfil-username").value.trim();
+  if (username && !/^[a-zA-Z0-9_.]{3,}$/.test(username)) {
+    toast("Username inválido: mínimo 3, só letras, números, _ ou ."); return;
+  }
+  const dados = {
+    id: state.user.id,
+    nome: $("#perfil-nome").value.trim() || null,
+    apelido: $("#perfil-apelido").value.trim() || null,
+    numero: $("#perfil-numero").value.trim() || null,
+    username: username || null,
+    email: state.user.email,
+  };
+  const { error } = await sb.from("profiles").upsert(dados);
+  if (error) { toast(traduzErro(error.message)); return; }
+  state.profile = dados;
+  toast("Dados guardados! ✅");
 }
 
 async function trocarPassword(e) {
@@ -770,6 +826,7 @@ function ligarEventos() {
   $("#quinta-apagar").addEventListener("click", apagarQuinta);
 
   // conta
+  $("#form-perfil").addEventListener("submit", guardarPerfil);
   $("#form-password").addEventListener("submit", trocarPassword);
   $("#conta-logout").addEventListener("click", () => sb.auth.signOut());
 }
