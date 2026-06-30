@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#0f1419" />
   <link rel="manifest" href="manifest.json" />
+  <!-- iPhone: ícone no ecrã principal + app em ecrã inteiro -->
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <meta name="apple-mobile-web-app-title" content="Bandeja" />
   <title>Bandeja</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -33,6 +38,9 @@
       <p class="switch-auth muted">
         <span id="switch-text">Ainda não tens conta?</span>
         <a href="#" id="switch-link">Criar conta</a>
+      </p>
+      <p class="switch-auth muted" id="forgot-row">
+        <a href="#" id="forgot-link">Esqueci-me da palavra-passe</a>
       </p>
 
       <p id="config-warning" class="config-warning hidden">
@@ -67,6 +75,10 @@
           <div class="card stat">
             <span class="stat-label">Ganho no mês</span>
             <span class="stat-value money" id="stat-ganho">0,00 €</span>
+          </div>
+          <div class="card stat">
+            <span class="stat-label">Recebido no mês</span>
+            <span class="stat-value money" id="stat-recebido">0,00 €</span>
           </div>
           <div class="card stat">
             <span class="stat-label">Por receber</span>
@@ -191,7 +203,7 @@
           </label>
         </div>
         <label>Gorjeta / extra (€) <span class="muted">opcional</span>
-          <input type="number" id="servico-gorjeta" step="0.01" min="0" placeholder="0,00" />
+          <input type="text" inputmode="decimal" id="servico-gorjeta" placeholder="0,00" />
         </label>
         <label>Notas <span class="muted">opcional</span>
           <input type="text" id="servico-notas" placeholder="ex: casamento, 200 pessoas" />
@@ -223,7 +235,7 @@
           <input type="text" id="quinta-nome" required placeholder="ex: Quinta do Vale" />
         </label>
         <label>Valor à hora (€)
-          <input type="number" id="quinta-valor" step="0.01" min="0" required placeholder="ex: 8,50" />
+          <input type="text" inputmode="decimal" id="quinta-valor" required placeholder="ex: 8,50" />
         </label>
         <label>Morada <span class="muted">opcional</span>
           <input type="text" id="quinta-morada" placeholder="localidade" />
@@ -234,6 +246,26 @@
         <div class="modal-actions">
           <button type="button" class="btn btn-ghost danger hidden" id="quinta-apagar">Apagar</button>
           <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal recuperar palavra-passe (vindo do email) -->
+  <div id="modal-recovery" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h2>Definir nova palavra-passe</h2>
+      </div>
+      <form id="form-recovery">
+        <label>Nova palavra-passe
+          <input type="password" id="rec-nova" required minlength="6" autocomplete="new-password" placeholder="mínimo 6 caracteres" />
+        </label>
+        <label>Confirmar nova palavra-passe
+          <input type="password" id="rec-nova2" required minlength="6" autocomplete="new-password" placeholder="repete a nova" />
+        </label>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-primary btn-block">Guardar nova palavra-passe</button>
         </div>
       </form>
     </div>

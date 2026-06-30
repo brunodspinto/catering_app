@@ -100,7 +100,9 @@ form input:focus,form select:focus{border-color:var(--accent)}
 .item .sub{color:var(--muted);font-size:.82rem;margin-top:3px}
 .item .right{text-align:right;flex-shrink:0}
 .item .amount{font-weight:800;font-size:1.05rem}
-.badge{display:inline-block;font-size:.7rem;font-weight:700;padding:3px 8px;border-radius:999px;margin-top:4px}
+.badge{display:inline-block;font-size:.7rem;font-weight:700;padding:4px 10px;border-radius:999px;margin-top:4px;
+  border:none;cursor:pointer;font-family:inherit}
+.badge:active{transform:scale(.94)}
 .badge.pago{background:#10331f;color:#4ade80}
 .badge.pendente{background:#3a2a0c;color:#fbbf24}
 .bar{height:6px;border-radius:999px;background:var(--line);overflow:hidden;margin-top:8px}

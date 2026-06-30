@@ -90,8 +90,21 @@ function setupAuthUI() {
     $("#auth-submit").textContent = modoCriarConta ? "Criar conta" : "Entrar";
     $("#switch-text").textContent = modoCriarConta ? "Já tens conta?" : "Ainda não tens conta?";
     $("#switch-link").textContent = modoCriarConta ? "Entrar" : "Criar conta";
+    $("#forgot-row").classList.toggle("hidden", modoCriarConta);
     $("#auth-error").classList.add("hidden");
   });
+
+  $("#forgot-link").addEventListener("click", async (e) => {
+    e.preventDefault();
+    if (!configOK) { showAuthError("Falta configurar o config.js."); return; }
+    const email = $("#auth-email").value.trim();
+    if (!email) { showAuthError("Escreve primeiro o teu email aqui em cima."); return; }
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+    if (error) { showAuthError(traduzErro(error.message)); return; }
+    toast("Email enviado! Vê a tua caixa de correio para repor a palavra-passe.");
+  });
+
+  $("#form-recovery").addEventListener("submit", guardarRecovery);
 
   $("#auth-form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -220,7 +233,7 @@ function servicoItemHTML(s) {
       </div>
       <div class="right">
         <div class="amount money">${fmtEUR(t)}</div>
-        <span class="badge ${s.estado}">${s.estado === "pago" ? "Pago" : "Por receber"}</span>
+        <button class="badge ${s.estado}" data-pago="${s.id}" title="Tocar para alternar pago/por receber">${s.estado === "pago" ? "Pago" : "Por receber"}</button>
       </div>
     </div>`;
 }
@@ -240,6 +253,23 @@ function ligarCliquesServico(sel) {
   $$(`${sel} [data-servico]`).forEach((el) => {
     el.addEventListener("click", () => abrirModalServico(el.dataset.servico));
   });
+  // selo "Pago/Por receber" alterna com um toque (sem abrir o serviço)
+  $$(`${sel} [data-pago]`).forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      togglePagoServico(el.dataset.pago);
+    });
+  });
+}
+
+async function togglePagoServico(id) {
+  const s = state.servicos.find((x) => x.id === id);
+  if (!s) return;
+  const novo = s.estado === "pago" ? "pendente" : "pago";
+  const { error } = await sb.from("servicos").update({ estado: novo }).eq("id", id);
+  if (error) { toast("Erro: " + error.message); return; }
+  toast(novo === "pago" ? "Marcado como pago ✅" : "Marcado como por receber");
+  await carregarTudo();
 }
 
 /* ============================================================
@@ -296,7 +326,7 @@ function abrirModalServico(id) {
     setData("servico-data", s.data);
     setHora("servico-inicio", s.hora_inicio ? s.hora_inicio.slice(0, 5) : "");
     setHora("servico-fim", s.hora_fim ? s.hora_fim.slice(0, 5) : "");
-    $("#servico-gorjeta").value = Number(s.gorjeta) || "";
+    $("#servico-gorjeta").value = comVirgula(Number(s.gorjeta) || 0);
     $("#servico-notas").value = s.notas || "";
     $("#servico-pago").checked = s.estado === "pago";
   }
@@ -317,7 +347,7 @@ function valorHoraAtual() {
 function atualizarPreviewServico() {
   const valorHora = valorHoraAtual();
   const horas = calcHoras($("#servico-inicio").value, $("#servico-fim").value);
-  const gorjeta = Number($("#servico-gorjeta").value) || 0;
+  const gorjeta = parseNum($("#servico-gorjeta").value);
   const total = horas * valorHora + gorjeta;
   $("#servico-preview").textContent = horas
     ? `${fmtHoras(horas)} × ${fmtEUR(valorHora)}${gorjeta ? " + " + fmtEUR(gorjeta) : ""} = ${fmtEUR(total)}`
@@ -341,7 +371,7 @@ async function guardarServico(e) {
     data: $("#servico-data").value,
     hora_inicio: $("#servico-inicio").value,
     hora_fim: $("#servico-fim").value,
-    gorjeta: Number($("#servico-gorjeta").value) || 0,
+    gorjeta: parseNum($("#servico-gorjeta").value),
     estado: $("#servico-pago").checked ? "pago" : "pendente",
     notas: $("#servico-notas").value.trim() || null,
   };
@@ -501,7 +531,7 @@ function abrirModalQuinta(id) {
     const q = state.quintas.find((x) => x.id === id);
     if (!q) return;
     $("#quinta-nome").value = q.nome;
-    $("#quinta-valor").value = q.valor_hora;
+    $("#quinta-valor").value = comVirgula(q.valor_hora);
     $("#quinta-morada").value = q.morada || "";
     $("#quinta-notas").value = q.notas || "";
   }
@@ -513,7 +543,7 @@ async function guardarQuinta(e) {
   const id = $("#quinta-id").value;
   const dados = {
     nome: $("#quinta-nome").value.trim(),
-    valor_hora: Number($("#quinta-valor").value) || 0,
+    valor_hora: parseNum($("#quinta-valor").value),
     morada: $("#quinta-morada").value.trim() || null,
     notas: $("#quinta-notas").value.trim() || null,
   };
@@ -637,6 +667,18 @@ async function trocarPassword(e) {
   toast("Palavra-passe alterada! ✅");
 }
 
+// vindo do link do email (recuperação): definir nova palavra-passe
+async function guardarRecovery(e) {
+  e.preventDefault();
+  const nova = $("#rec-nova").value, nova2 = $("#rec-nova2").value;
+  if (nova.length < 6) { toast("A palavra-passe tem de ter pelo menos 6 caracteres."); return; }
+  if (nova !== nova2) { toast("A confirmação não coincide."); return; }
+  const { error } = await sb.auth.updateUser({ password: nova });
+  if (error) { toast("Erro: " + error.message); return; }
+  fecharModais();
+  toast("Palavra-passe definida! ✅ Já estás dentro.");
+}
+
 /* ============================================================
    HELPERS
    ============================================================ */
@@ -649,6 +691,10 @@ function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
+// aceita vírgula OU ponto como separador decimal (ex.: "8,50" -> 8.5)
+function parseNum(v) { return Number(String(v).replace(",", ".").trim()) || 0; }
+// mostra um número com vírgula para o utilizador (ex.: 8.5 -> "8,5")
+function comVirgula(n) { return n ? String(n).replace(".", ",") : ""; }
 
 /* ============================================================
    ARRANQUE
@@ -725,7 +771,14 @@ async function init() {
   }
 
   // reagir a login/logout
-  sb.auth.onAuthStateChange((_evt, session) => {
+  sb.auth.onAuthStateChange((evt, session) => {
+    if (evt === "PASSWORD_RECOVERY") {
+      state.user = session ? session.user : null;
+      mostrarApp(true);
+      carregarTudo();
+      abrirModal("#modal-recovery");   // pede a nova palavra-passe
+      return;
+    }
     if (session) {
       state.user = session.user;
       mostrarApp(true);
