@@ -191,6 +191,7 @@ function renderResumo() {
   }
 
   $("#stat-ganho").textContent = fmtEUR(ganho);
+  $("#stat-num-mes").textContent = doMes.length;
   $("#stat-pendente").textContent = fmtEUR(pendente);
   $("#stat-horas").textContent = fmtHoras(horas);
 
