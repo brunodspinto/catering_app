@@ -95,6 +95,8 @@ function setupAuthUI() {
     $(".signup-only").classList.toggle("hidden", !modoCriarConta);
     $("#auth-email-label").textContent = modoCriarConta ? "Email" : "Email ou username";
     $("#auth-email").placeholder = modoCriarConta ? "o-teu-email@exemplo.com" : "email ou username";
+    // ajuda o iPhone/iCloud a guardar a password (Face ID) ao criar conta
+    $("#auth-password").setAttribute("autocomplete", modoCriarConta ? "new-password" : "current-password");
     $("#auth-error").classList.add("hidden");
   });
 
