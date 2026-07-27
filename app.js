@@ -22,6 +22,7 @@ const state = {
   filtroServico: "todos",
   mes: new Date(),            // mês mostrado no resumo
   editandoServico: null,      // serviço a ser editado (para manter o valor/hora histórico)
+  horaInicioTocada: false,    // o utilizador já escolheu a hora à mão neste serviço?
 };
 
 // ---------- Atalhos ----------
@@ -361,10 +362,12 @@ function abrirModalServico(id) {
   $("#servico-id").value = id || "";
   state.editandoServico = novo ? null : (state.servicos.find((x) => x.id === id) || null);
 
+  state.horaInicioTocada = false;
+
   if (novo) {
     preencherSelectQuintas();
     setData("servico-data", hojeISO());
-    setHora("servico-inicio", "");
+    setHora("servico-inicio", horaPadraoDaQuinta());   // hora habitual da quinta
     setHora("servico-fim", "");
   } else {
     const s = state.editandoServico;
@@ -379,6 +382,12 @@ function abrirModalServico(id) {
   }
   atualizarPreviewServico();
   abrirModal("#modal-servico");
+}
+
+// hora habitual de início definida na quinta escolhida (vazio se não tiver)
+function horaPadraoDaQuinta() {
+  const q = state.quintas.find((x) => x.id === $("#servico-quinta").value);
+  return q && q.hora_inicio_padrao ? q.hora_inicio_padrao.slice(0, 5) : "";
 }
 
 // valor/hora a aplicar: se estamos a editar e a quinta não mudou, mantém o valor
@@ -457,26 +466,32 @@ function setHora(inputId, val) {
   if (trg) trg.textContent = val || "--:--";
 }
 
-function tpConstruirColuna(col, max, sel, onPick) {
+// constrói uma coluna a partir de uma lista de valores (ex.: [0,15,30,45])
+function tpConstruirColuna(col, valores, selVal, onPick) {
   col.innerHTML = "";
-  for (let i = 0; i < max; i++) {
+  for (const v of valores) {
     const it = document.createElement("div");
-    it.className = "tp-item" + (i === sel ? " sel" : "");
-    it.textContent = pad2(i);
-    it.addEventListener("click", () => onPick(i));
+    it.className = "tp-item" + (v === selVal ? " sel" : "");
+    it.textContent = pad2(v);
+    it.dataset.val = v;
+    it.addEventListener("click", () => onPick(v));
     col.appendChild(it);
   }
 }
-function tpCentrar(col, idx, smooth) {
-  col.scrollTo({ top: idx * 44, behavior: smooth ? "smooth" : "auto" });
+function tpCentrar(col, valores, val, smooth) {
+  const i = Math.max(0, valores.indexOf(val));
+  col.scrollTo({ top: i * 44, behavior: smooth ? "smooth" : "auto" });
 }
-function tpMarcar(col, idx) {
-  col.querySelectorAll(".tp-item").forEach((el, i) => el.classList.toggle("sel", i === idx));
+function tpMarcar(col, val) {
+  col.querySelectorAll(".tp-item").forEach((el) =>
+    el.classList.toggle("sel", Number(el.dataset.val) === val));
 }
 function tpAplicar() {
   const val = `${pad2(TP.h)}:${pad2(TP.m)}`;
   TP.input.value = val;
   TP.trigger.textContent = val;
+  // se foi a hora de entrada, deixa de ser a sugestão automática da quinta
+  if (TP.input.id === "servico-inicio") state.horaInicioTocada = true;
   atualizarPreviewServico();
 }
 
@@ -491,12 +506,17 @@ function abrirTimePicker(trigger) {
     TP.h = h; TP.m = m;
   } else { TP.h = 18; TP.m = 0; }
 
+  const horas = Array.from({ length: 24 }, (_, i) => i);
+  // minutos de 15 em 15; se um serviço antigo tiver outro valor, mantém-no na lista
+  const minutos = [0, 15, 30, 45];
+  if (!minutos.includes(TP.m)) { minutos.push(TP.m); minutos.sort((a, b) => a - b); }
+
   const colH = $("#tp-hours"), colM = $("#tp-mins");
-  tpConstruirColuna(colH, 24, TP.h, (i) => { TP.h = i; tpMarcar(colH, i); tpCentrar(colH, i, true); tpAplicar(); });
-  tpConstruirColuna(colM, 60, TP.m, (i) => { TP.m = i; tpMarcar(colM, i); tpCentrar(colM, i, true); tpAplicar(); });
+  tpConstruirColuna(colH, horas, TP.h, (v) => { TP.h = v; tpMarcar(colH, v); tpCentrar(colH, horas, v, true); tpAplicar(); });
+  tpConstruirColuna(colM, minutos, TP.m, (v) => { TP.m = v; tpMarcar(colM, v); tpCentrar(colM, minutos, v, true); tpAplicar(); });
 
   $("#time-picker").classList.remove("hidden");
-  requestAnimationFrame(() => { tpCentrar(colH, TP.h, false); tpCentrar(colM, TP.m, false); });
+  requestAnimationFrame(() => { tpCentrar(colH, horas, TP.h, false); tpCentrar(colM, minutos, TP.m, false); });
 }
 function fecharTimePicker() { $("#time-picker").classList.add("hidden"); }
 
@@ -574,11 +594,14 @@ function abrirModalQuinta(id) {
   $("#quinta-apagar").classList.toggle("hidden", novo);
   $("#form-quinta").reset();
   $("#quinta-id").value = id || "";
-  if (!novo) {
+  if (novo) {
+    setHora("quinta-hora", "");
+  } else {
     const q = state.quintas.find((x) => x.id === id);
     if (!q) return;
     $("#quinta-nome").value = q.nome;
     $("#quinta-valor").value = comVirgula(q.valor_hora);
+    setHora("quinta-hora", q.hora_inicio_padrao ? q.hora_inicio_padrao.slice(0, 5) : "");
     $("#quinta-morada").value = q.morada || "";
     $("#quinta-notas").value = q.notas || "";
   }
@@ -591,6 +614,7 @@ async function guardarQuinta(e) {
   const dados = {
     nome: $("#quinta-nome").value.trim(),
     valor_hora: parseNum($("#quinta-valor").value),
+    hora_inicio_padrao: $("#quinta-hora").value || null,
     morada: $("#quinta-morada").value.trim() || null,
     notas: $("#quinta-notas").value.trim() || null,
   };
@@ -806,8 +830,13 @@ function ligarEventos() {
   // formulários
   $("#form-servico").addEventListener("submit", guardarServico);
   $("#servico-apagar").addEventListener("click", apagarServico);
-  ["#servico-quinta", "#servico-gorjeta"].forEach((s) =>
-    $(s).addEventListener("input", atualizarPreviewServico));
+  $("#servico-gorjeta").addEventListener("input", atualizarPreviewServico);
+  // trocar de quinta: num serviço novo, propõe a hora habitual dessa quinta
+  $("#servico-quinta").addEventListener("change", () => {
+    const novo = !$("#servico-id").value;
+    if (novo && !state.horaInicioTocada) setHora("servico-inicio", horaPadraoDaQuinta());
+    atualizarPreviewServico();
+  });
 
   // seletor de horas próprio
   $$(".time-trigger").forEach((b) => b.addEventListener("click", () => abrirTimePicker(b)));

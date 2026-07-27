@@ -12,6 +12,7 @@ create table if not exists public.quintas (
   user_id     uuid not null references auth.users(id) on delete cascade default auth.uid(),
   nome        text not null,
   valor_hora  numeric(10,2) not null default 0,
+  hora_inicio_padrao time,                       -- hora habitual de início nesta quinta
   morada      text,
   notas       text,
   ativo       boolean not null default true,

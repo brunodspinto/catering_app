@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "bandeja",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "5179"],
+      "port": 5179
+    }
+  ]
+}
