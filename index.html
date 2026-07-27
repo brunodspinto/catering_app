@@ -27,25 +27,31 @@
       <form id="auth-form" autocomplete="on">
         <div class="signup-only hidden">
           <div class="row">
-            <label>Nome
-              <input type="text" id="auth-nome" placeholder="primeiro nome" />
+            <label class="fl">
+              <input type="text" id="auth-nome" placeholder=" " />
+              <span>Nome</span>
             </label>
-            <label>Apelido
-              <input type="text" id="auth-apelido" placeholder="último nome" />
+            <label class="fl">
+              <input type="text" id="auth-apelido" placeholder=" " />
+              <span>Apelido</span>
             </label>
           </div>
-          <label>Número <span class="muted">opcional</span>
-            <input type="tel" id="auth-numero" inputmode="tel" placeholder="912 345 678" />
+          <label class="fl">
+            <input type="tel" id="auth-numero" inputmode="tel" placeholder=" " />
+            <span>Número (opcional)</span>
           </label>
-          <label>Username
-            <input type="text" id="auth-username" autocomplete="username" placeholder="ex: bruno_p" />
+          <label class="fl">
+            <input type="text" id="auth-username" autocomplete="username" placeholder=" " />
+            <span>Username</span>
           </label>
         </div>
-        <label><span id="auth-email-label">Email ou username</span>
-          <input type="text" id="auth-email" required autocomplete="username" placeholder="email ou username" />
+        <label class="fl">
+          <input type="text" id="auth-email" required autocomplete="username" placeholder=" " />
+          <span id="auth-email-label">Email ou username</span>
         </label>
-        <label>Senha
-          <input type="password" id="auth-password" required placeholder="••••••••" minlength="6" autocomplete="current-password" />
+        <label class="fl">
+          <input type="password" id="auth-password" required placeholder=" " minlength="6" autocomplete="current-password" />
+          <span>Senha</span>
         </label>
         <p id="auth-error" class="error hidden"></p>
         <button type="submit" id="auth-submit" class="btn btn-primary btn-block">Entrar</button>

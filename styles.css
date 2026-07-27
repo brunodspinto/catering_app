@@ -55,6 +55,17 @@ form input:focus,form select:focus{border-color:var(--accent)}
 .check{display:flex;align-items:center;gap:10px;margin-top:16px;color:var(--text)}
 .check input{width:auto;margin:0}
 
+/* ---------- Campos com etiqueta flutuante (login) ---------- */
+.fl{position:relative;display:block;margin:14px 0 0}
+.fl input{width:100%;margin:0;padding:24px 14px 9px;font-size:1rem}
+.fl span{position:absolute;left:15px;top:50%;transform:translateY(-50%);
+  font-size:1rem;color:var(--muted);pointer-events:none;transition:.15s ease}
+.fl input:focus + span,
+.fl input:not(:placeholder-shown) + span{
+  top:9px;transform:none;font-size:.7rem;letter-spacing:.3px;color:var(--accent)}
+/* preenchimento automático (iCloud/Chrome) mantém a etiqueta em cima */
+.fl input:-webkit-autofill + span{top:9px;transform:none;font-size:.7rem;color:var(--accent)}
+
 .btn{border:none;border-radius:12px;padding:13px 18px;font-size:1rem;font-weight:600;
   cursor:pointer;transition:.15s;color:#fff}
 .btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#06281f}
