@@ -367,8 +367,8 @@ function abrirModalServico(id) {
   if (novo) {
     preencherSelectQuintas();
     setData("servico-data", dataSugeridaServico());
-    setHora("servico-inicio", horaPadraoDaQuinta());   // hora habitual da quinta
-    setHora("servico-fim", "");
+    setHora("servico-inicio", horaPadraoDaQuinta());     // hora habitual da quinta
+    setHora("servico-fim", horaAgoraArredondada());      // hora a que estás agora
   } else {
     const s = state.editandoServico;
     if (!s) return;
@@ -511,6 +511,8 @@ function abrirTimePicker(trigger) {
   const minutos = [0, 15, 30, 45];
   if (!minutos.includes(TP.m)) { minutos.push(TP.m); minutos.sort((a, b) => a - b); }
 
+  TP.horas = horas; TP.minutos = minutos;   // guardados para o botão "Agora"
+
   const colH = $("#tp-hours"), colM = $("#tp-mins");
   tpConstruirColuna(colH, horas, TP.h, (v) => { TP.h = v; tpMarcar(colH, v); tpCentrar(colH, horas, v, true); tpAplicar(); });
   tpConstruirColuna(colM, minutos, TP.m, (v) => { TP.m = v; tpMarcar(colM, v); tpCentrar(colM, minutos, v, true); tpAplicar(); });
@@ -519,6 +521,15 @@ function abrirTimePicker(trigger) {
   requestAnimationFrame(() => { tpCentrar(colH, horas, TP.h, false); tpCentrar(colM, minutos, TP.m, false); });
 }
 function fecharTimePicker() { $("#time-picker").classList.add("hidden"); }
+
+// coloca uma hora nas duas colunas de uma vez (usado pelo botão "Agora")
+function tpDefinir(h, m) {
+  const colH = $("#tp-hours"), colM = $("#tp-mins");
+  TP.h = h; TP.m = m;
+  tpMarcar(colH, h); tpCentrar(colH, TP.horas, h, true);
+  tpMarcar(colM, m); tpCentrar(colM, TP.minutos, m, true);
+  tpAplicar();
+}
 
 /* ============================================================
    SELETOR DE DATA (calendário)
@@ -786,6 +797,13 @@ function hojeISO() {
   const off = d.getTimezoneOffset();
   return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
 }
+// hora atual do aparelho, arredondada à opção de 15 min mais próxima
+// (ex.: 00:56 -> 01:00). O 60 rola sozinho para a hora seguinte.
+function horaAgoraArredondada(agora = new Date()) {
+  const d = new Date(agora);
+  d.setMinutes(Math.round(d.getMinutes() / 15) * 15, 0, 0);
+  return pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+}
 // data sugerida ao criar um serviço: se ainda for madrugada (antes das 8h),
 // o turno começou no dia anterior — sugere esse dia
 function dataSugeridaServico(agora = new Date()) {
@@ -848,6 +866,10 @@ function ligarEventos() {
 
   // seletor de horas próprio
   $$(".time-trigger").forEach((b) => b.addEventListener("click", () => abrirTimePicker(b)));
+  $("#tp-agora").addEventListener("click", () => {
+    const [h, m] = horaAgoraArredondada().split(":").map(Number);
+    tpDefinir(h, m);
+  });
   $("#tp-ok").addEventListener("click", fecharTimePicker);
   $("#tp-close").addEventListener("click", fecharTimePicker);
   $("#time-picker").addEventListener("click", (e) => { if (e.target.id === "time-picker") fecharTimePicker(); });
