@@ -13,6 +13,8 @@ create table if not exists public.quintas (
   nome        text not null,
   valor_hora  numeric(10,2) not null default 0,
   hora_inicio_padrao time,                       -- hora habitual de início nesta quinta
+  latitude    double precision,                  -- localização (para reconhecer a quinta)
+  longitude   double precision,
   morada      text,
   notas       text,
   ativo       boolean not null default true,

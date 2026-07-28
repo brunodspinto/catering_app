@@ -369,6 +369,7 @@ function abrirModalServico(id) {
     setData("servico-data", dataSugeridaServico());
     setHora("servico-inicio", horaPadraoDaQuinta());     // hora habitual da quinta
     setHora("servico-fim", horaAgoraArredondada());      // hora a que estás agora
+    sugerirQuintaPelaLocalizacao();                      // e em que quinta estás
   } else {
     const s = state.editandoServico;
     if (!s) return;
@@ -597,6 +598,82 @@ function abrirDatePicker(trigger) {
 function fecharDatePicker() { $("#date-picker").classList.add("hidden"); }
 
 /* ============================================================
+   LOCALIZAÇÃO (reconhecer em que quinta estás)
+   ============================================================ */
+const RAIO_QUINTA = 1000;  // metros — a que distância se considera "estou aqui"
+
+// distância em metros entre duas coordenadas (fórmula de Haversine)
+function distanciaMetros(lat1, lon1, lat2, lon2) {
+  const R = 6371000, r = Math.PI / 180;
+  const dLat = (lat2 - lat1) * r, dLon = (lon2 - lon1) * r;
+  const x = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+
+function obterLocalizacao() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error("sem GPS"));
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolve(p.coords), reject,
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 });
+  });
+}
+
+// qual das minhas quintas está mais perto (se estiver dentro do raio)
+function quintaMaisProxima(coords) {
+  let melhor = null, dist = Infinity;
+  for (const q of state.quintas) {
+    if (q.latitude == null || q.longitude == null) continue;
+    const d = distanciaMetros(coords.latitude, coords.longitude,
+                              Number(q.latitude), Number(q.longitude));
+    if (d < dist) { dist = d; melhor = q; }
+  }
+  return (melhor && dist <= RAIO_QUINTA) ? { quinta: melhor, metros: Math.round(dist) } : null;
+}
+
+// ao criar um serviço, tenta descobrir em que quinta estás (não bloqueia nada)
+async function sugerirQuintaPelaLocalizacao() {
+  if (!state.quintas.some((q) => q.latitude != null)) return;  // nenhuma quinta tem localização
+  try {
+    const perto = quintaMaisProxima(await obterLocalizacao());
+    if (!perto) return;
+    // só aplica se ainda estivermos num serviço novo por preencher
+    if ($("#modal-servico").classList.contains("hidden")) return;
+    if ($("#servico-id").value) return;
+    if ($("#servico-quinta").value === perto.quinta.id) return;
+    $("#servico-quinta").value = perto.quinta.id;
+    $("#servico-quinta").dispatchEvent(new Event("change"));
+    toast(`📍 Estás na ${perto.quinta.nome}`);
+  } catch (e) { /* sem autorização ou sem sinal: fica tudo como está */ }
+}
+
+function mostrarInfoLocalizacao(precisao) {
+  const tem = !!$("#quinta-lat").value;
+  $("#quinta-gps-info").textContent = !tem ? "Sem localização guardada"
+    : precisao ? `Localização apanhada (precisão ~${precisao} m)`
+               : "Localização guardada ✓";
+  $("#quinta-gps-remover").classList.toggle("hidden", !tem);
+}
+
+async function capturarLocalizacaoQuinta() {
+  const btn = $("#quinta-gps"), texto = btn.textContent;
+  btn.disabled = true; btn.textContent = "A obter localização…";
+  try {
+    const c = await obterLocalizacao();
+    $("#quinta-lat").value = c.latitude;
+    $("#quinta-lon").value = c.longitude;
+    mostrarInfoLocalizacao(Math.round(c.accuracy));
+    toast("Localização apanhada — falta Guardar.");
+  } catch (e) {
+    toast(e && e.code === 1 ? "Autorização de localização recusada."
+                            : "Não consegui obter a localização.");
+  } finally {
+    btn.disabled = false; btn.textContent = texto;
+  }
+}
+
+/* ============================================================
    MODAL QUINTA
    ============================================================ */
 function abrirModalQuinta(id) {
@@ -607,15 +684,19 @@ function abrirModalQuinta(id) {
   $("#quinta-id").value = id || "";
   if (novo) {
     setHora("quinta-hora", "");
+    $("#quinta-lat").value = ""; $("#quinta-lon").value = "";
   } else {
     const q = state.quintas.find((x) => x.id === id);
     if (!q) return;
     $("#quinta-nome").value = q.nome;
     $("#quinta-valor").value = comVirgula(q.valor_hora);
     setHora("quinta-hora", q.hora_inicio_padrao ? q.hora_inicio_padrao.slice(0, 5) : "");
+    $("#quinta-lat").value = q.latitude ?? "";
+    $("#quinta-lon").value = q.longitude ?? "";
     $("#quinta-morada").value = q.morada || "";
     $("#quinta-notas").value = q.notas || "";
   }
+  mostrarInfoLocalizacao();
   abrirModal("#modal-quinta");
 }
 
@@ -626,6 +707,8 @@ async function guardarQuinta(e) {
     nome: $("#quinta-nome").value.trim(),
     valor_hora: parseNum($("#quinta-valor").value),
     hora_inicio_padrao: $("#quinta-hora").value || null,
+    latitude: $("#quinta-lat").value ? Number($("#quinta-lat").value) : null,
+    longitude: $("#quinta-lon").value ? Number($("#quinta-lon").value) : null,
     morada: $("#quinta-morada").value.trim() || null,
     notas: $("#quinta-notas").value.trim() || null,
   };
@@ -884,6 +967,12 @@ function ligarEventos() {
 
   $("#form-quinta").addEventListener("submit", guardarQuinta);
   $("#quinta-apagar").addEventListener("click", apagarQuinta);
+  $("#quinta-gps").addEventListener("click", capturarLocalizacaoQuinta);
+  $("#quinta-gps-remover").addEventListener("click", () => {
+    $("#quinta-lat").value = ""; $("#quinta-lon").value = "";
+    mostrarInfoLocalizacao();
+    toast("Localização removida — falta Guardar.");
+  });
 
   // conta
   $("#form-perfil").addEventListener("submit", guardarPerfil);

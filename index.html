@@ -280,6 +280,15 @@
           <button type="button" class="time-trigger" data-target="quinta-hora" data-titulo="Hora habitual de início">--:--</button>
           <input type="hidden" id="quinta-hora" />
         </label>
+        <label>Localização <span class="muted">opcional — para reconhecer a quinta</span></label>
+        <button type="button" class="btn btn-ghost btn-block" id="quinta-gps" style="margin-top:6px">📍 Usar a minha localização atual</button>
+        <p class="gps-info">
+          <span id="quinta-gps-info">Sem localização guardada</span>
+          <button type="button" id="quinta-gps-remover" class="linkish hidden">remover</button>
+        </p>
+        <input type="hidden" id="quinta-lat" />
+        <input type="hidden" id="quinta-lon" />
+
         <label>Morada <span class="muted">opcional</span>
           <input type="text" id="quinta-morada" placeholder="localidade" />
         </label>
