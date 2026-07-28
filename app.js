@@ -366,7 +366,7 @@ function abrirModalServico(id) {
 
   if (novo) {
     preencherSelectQuintas();
-    setData("servico-data", hojeISO());
+    setData("servico-data", dataSugeridaServico());
     setHora("servico-inicio", horaPadraoDaQuinta());   // hora habitual da quinta
     setHora("servico-fim", "");
   } else {
@@ -783,6 +783,14 @@ async function guardarRecovery(e) {
    ============================================================ */
 function hojeISO() {
   const d = new Date();
+  const off = d.getTimezoneOffset();
+  return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
+}
+// data sugerida ao criar um serviço: se ainda for madrugada (antes das 8h),
+// o turno começou no dia anterior — sugere esse dia
+function dataSugeridaServico(agora = new Date()) {
+  const d = new Date(agora);
+  if (d.getHours() < 8) d.setDate(d.getDate() - 1);
   const off = d.getTimezoneOffset();
   return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
 }
