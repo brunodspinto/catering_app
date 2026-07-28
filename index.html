@@ -152,7 +152,19 @@
 
         <!-- ---- aba: DADOS ---- -->
         <div class="conta-aba" id="conta-aba-dados">
-        <form id="form-perfil" class="card">
+
+        <!-- ver (só leitura) -->
+        <div class="card" id="perfil-ver">
+          <div class="dado"><span class="dado-label">Nome</span><span class="dado-valor" id="ver-nome">—</span></div>
+          <div class="dado"><span class="dado-label">Apelido</span><span class="dado-valor" id="ver-apelido">—</span></div>
+          <div class="dado"><span class="dado-label">Número</span><span class="dado-valor" id="ver-numero">—</span></div>
+          <div class="dado"><span class="dado-label">Username</span><span class="dado-valor" id="ver-username">—</span></div>
+          <div class="dado"><span class="dado-label">Email</span><span class="dado-valor" id="ver-email">—</span></div>
+        </div>
+        <button type="button" class="btn btn-ghost btn-block" id="perfil-editar">Editar perfil</button>
+
+        <!-- editar -->
+        <form id="form-perfil" class="card hidden">
           <div class="row">
             <label>Nome
               <input type="text" id="perfil-nome" placeholder="primeiro nome" />
@@ -170,7 +182,10 @@
           <label>Email <span class="muted">(não editável)</span>
             <input type="email" id="perfil-email" disabled />
           </label>
-          <button type="submit" class="btn btn-primary btn-block" style="margin-top:16px">Guardar dados</button>
+          <div class="modal-actions" style="margin-top:16px">
+            <button type="button" class="btn btn-ghost" id="perfil-cancelar">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Guardar</button>
+          </div>
         </form>
 
         </div><!-- fim aba Dados -->

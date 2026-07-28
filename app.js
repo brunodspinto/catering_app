@@ -812,14 +812,7 @@ function aoCarregarFab() {
    CONTA — estatísticas e palavra-passe
    ============================================================ */
 function renderConta() {
-  // dados do perfil (com recurso aos metadados do registo, se ainda não houver perfil)
-  const pf = state.profile || {};
-  const meta = (state.user && state.user.user_metadata) || {};
-  $("#perfil-nome").value = pf.nome || meta.nome || "";
-  $("#perfil-apelido").value = pf.apelido || meta.apelido || "";
-  $("#perfil-numero").value = pf.numero || meta.numero || "";
-  $("#perfil-username").value = pf.username || meta.username || "";
-  $("#perfil-email").value = state.user ? state.user.email : (pf.email || "");
+  renderPerfil();
 
   let ganho = 0, pendente = 0, horas = 0;
   const porQuinta = {};
@@ -885,6 +878,35 @@ function mudarAbaConta(aba) {
   $$("#conta-abas .chip").forEach((c) => c.classList.toggle("active", c.dataset.aba === aba));
 }
 
+// mostra os dados do perfil (leitura) e prepara o formulário de edição
+function renderPerfil() {
+  const pf = state.profile || {};
+  const meta = (state.user && state.user.user_metadata) || {};
+  const dados = {
+    nome:     pf.nome     || meta.nome     || "",
+    apelido:  pf.apelido  || meta.apelido  || "",
+    numero:   pf.numero   || meta.numero   || "",
+    username: pf.username || meta.username || "",
+    email:    state.user ? state.user.email : (pf.email || ""),
+  };
+
+  // cartão de leitura
+  for (const [campo, valor] of Object.entries(dados))
+    $("#ver-" + campo).textContent = valor || "—";
+
+  // formulário (só se não estiver a meio de uma edição)
+  if ($("#form-perfil").classList.contains("hidden")) {
+    for (const campo of ["nome", "apelido", "numero", "username", "email"])
+      $("#perfil-" + campo).value = dados[campo];
+  }
+}
+
+function modoPerfil(editar) {
+  $("#perfil-ver").classList.toggle("hidden", editar);
+  $("#perfil-editar").classList.toggle("hidden", editar);
+  $("#form-perfil").classList.toggle("hidden", !editar);
+}
+
 async function guardarPerfil(e) {
   e.preventDefault();
   if (!state.user) { toast("Sessão não encontrada."); return; }
@@ -903,6 +925,8 @@ async function guardarPerfil(e) {
   const { error } = await sb.from("profiles").upsert(dados);
   if (error) { toast(traduzErro(error.message)); return; }
   state.profile = dados;
+  modoPerfil(false);
+  renderPerfil();
   toast("Dados guardados! ✅");
 }
 
@@ -1053,6 +1077,11 @@ function ligarEventos() {
   $$("#conta-abas .chip").forEach((c) =>
     c.addEventListener("click", () => mudarAbaConta(c.dataset.aba)));
   $("#form-perfil").addEventListener("submit", guardarPerfil);
+  $("#perfil-editar").addEventListener("click", () => modoPerfil(true));
+  $("#perfil-cancelar").addEventListener("click", () => {
+    modoPerfil(false);
+    renderPerfil();          // desfaz alterações não guardadas
+  });
   $("#form-password").addEventListener("submit", trocarPassword);
   $("#conta-logout").addEventListener("click", () => sb.auth.signOut());
 }

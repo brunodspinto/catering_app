@@ -208,6 +208,13 @@ form input:focus,form select:focus{border-color:var(--accent)}
 .dp-actions,.tp-actions{ display:flex; gap:12px; margin-top:16px }
 .dp-actions .btn,.tp-actions .btn{ flex:1 }
 
+/* ---------- Perfil em modo leitura ---------- */
+.dado{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 0}
+.dado + .dado{border-top:1px solid var(--line)}
+.dado-label{color:var(--muted);font-size:.85rem;flex-shrink:0}
+.dado-valor{font-weight:700;text-align:right;word-break:break-word}
+#perfil-editar{margin-top:14px}
+
 /* ---------- Resumo "quanto te devem" ---------- */
 #servicos-resumo{margin-bottom:14px}
 #servicos-resumo-lista{margin-top:10px}
