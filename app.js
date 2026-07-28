@@ -449,9 +449,8 @@ function atualizarPreviewServico() {
   const valorHora = valorHoraAtual();
   const horas = calcHoras($("#servico-inicio").value, $("#servico-fim").value);
   const total = horas * valorHora;
-  $("#servico-preview").textContent = horas
-    ? `${fmtHoras(horas)} × ${fmtEUR(valorHora)} = ${fmtEUR(total)}`
-    : "Preenche as horas para ver o total";
+  $("#preview-horas").textContent = horas ? fmtHoras(horas) : "—";
+  $("#preview-total").textContent = horas ? fmtEUR(total) : "—";
 }
 
 async function guardarServico(e) {

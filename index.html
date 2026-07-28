@@ -303,7 +303,16 @@
           <input type="checkbox" id="servico-pago" /> Já recebi este serviço
         </label>
 
-        <div class="calc-preview" id="servico-preview">—</div>
+        <div class="cards-grid" id="servico-preview">
+          <div class="card stat">
+            <span class="stat-label">Horas</span>
+            <span class="stat-value" id="preview-horas">—</span>
+          </div>
+          <div class="card stat">
+            <span class="stat-label">Total</span>
+            <span class="stat-value money" id="preview-total">—</span>
+          </div>
+        </div>
 
         <div class="modal-actions">
           <button type="button" class="btn btn-ghost danger hidden" id="servico-apagar">Apagar</button>
