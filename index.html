@@ -129,19 +129,21 @@
         <p id="servicos-vazio" class="empty hidden">Ainda não há serviços. Carrega no <b>+</b> para adicionar.</p>
       </section>
 
-      <!-- ---- QUINTAS ---- -->
-      <section id="view-quintas" class="view hidden">
-        <div id="quintas-lista" class="list"></div>
-        <p id="quintas-vazio" class="empty hidden">Ainda não tens quintas. Carrega no <b>+</b> para adicionar a primeira.</p>
-      </section>
-
       <!-- ---- CONTA ---- -->
       <section id="view-conta" class="view hidden">
         <div class="filter-chips" id="conta-abas">
           <button class="chip active" data-aba="dados">Dados</button>
+          <button class="chip" data-aba="quintas">Quintas</button>
           <button class="chip" data-aba="estatisticas">Estatísticas</button>
           <button class="chip" data-aba="gorjetas">Gorjetas</button>
           <button class="chip" data-aba="seguranca">Segurança</button>
+        </div>
+
+        <!-- ---- aba: QUINTAS ---- -->
+        <div class="conta-aba hidden" id="conta-aba-quintas">
+          <button type="button" class="btn btn-primary btn-block" id="nova-quinta" style="margin-top:0">+ Nova quinta</button>
+          <div id="quintas-lista" class="list" style="margin-top:14px"></div>
+          <p id="quintas-vazio" class="empty hidden">Ainda não tens quintas.<br />Carrega em <b>+ Nova quinta</b>.</p>
         </div>
 
         <!-- ---- aba: DADOS ---- -->
@@ -233,7 +235,6 @@
     <nav class="bottom-nav">
       <button class="nav-btn active" data-view="resumo"><span>📊</span>Resumo</button>
       <button class="nav-btn" data-view="servicos"><span>🧾</span>Serviços</button>
-      <button class="nav-btn" data-view="quintas"><span>🏡</span>Quintas</button>
       <button class="nav-btn" data-view="conta"><span>👤</span>Conta</button>
     </nav>
   </div>
@@ -305,7 +306,7 @@
           <button type="button" class="time-trigger" data-target="quinta-hora" data-titulo="Hora habitual de início">--:--</button>
           <input type="hidden" id="quinta-hora" />
         </label>
-        <label>Localização <span class="muted">opcional — para reconhecer a quinta</span></label>
+        <label>Localização <span class="muted">opcional</span></label>
         <button type="button" class="btn btn-ghost btn-block" id="quinta-gps" style="margin-top:6px">📍 Usar a minha localização atual</button>
         <p class="gps-info">
           <span id="quinta-gps-info">Sem localização guardada</span>
@@ -314,9 +315,6 @@
         <input type="hidden" id="quinta-lat" />
         <input type="hidden" id="quinta-lon" />
 
-        <label>Morada <span class="muted">opcional</span>
-          <input type="text" id="quinta-morada" placeholder="localidade" />
-        </label>
         <label>Notas <span class="muted">opcional</span>
           <input type="text" id="quinta-notas" placeholder="contacto, observações" />
         </label>

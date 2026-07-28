@@ -327,14 +327,19 @@ async function togglePagoServico(id) {
 function renderQuintas() {
   const wrap = $("#quintas-lista");
   $("#quintas-vazio").classList.toggle("hidden", state.quintas.length > 0);
-  wrap.innerHTML = state.quintas.map((q) => `
+  wrap.innerHTML = state.quintas.map((q) => {
+    const detalhes = [];
+    if (q.hora_inicio_padrao) detalhes.push("Início " + q.hora_inicio_padrao.slice(0, 5));
+    if (q.latitude != null && q.longitude != null) detalhes.push("📍 localização");
+    return `
     <div class="item" data-quinta="${q.id}">
       <div class="left">
         <div class="title">${escapeHtml(q.nome)}</div>
-        <div class="sub">${q.morada ? escapeHtml(q.morada) + " · " : ""}${fmtEUR(q.valor_hora)}/hora</div>
+        ${detalhes.length ? `<div class="sub">${detalhes.join(" · ")}</div>` : ""}
       </div>
       <div class="right"><span class="amount">${fmtEUR(q.valor_hora)}</span><div class="muted">por hora</div></div>
-    </div>`).join("");
+    </div>`;
+  }).join("");
   $$("#quintas-lista [data-quinta]").forEach((el) => {
     el.addEventListener("click", () => abrirModalQuinta(el.dataset.quinta));
   });
@@ -693,7 +698,6 @@ function abrirModalQuinta(id) {
     setHora("quinta-hora", q.hora_inicio_padrao ? q.hora_inicio_padrao.slice(0, 5) : "");
     $("#quinta-lat").value = q.latitude ?? "";
     $("#quinta-lon").value = q.longitude ?? "";
-    $("#quinta-morada").value = q.morada || "";
     $("#quinta-notas").value = q.notas || "";
   }
   mostrarInfoLocalizacao();
@@ -709,7 +713,6 @@ async function guardarQuinta(e) {
     hora_inicio_padrao: $("#quinta-hora").value || null,
     latitude: $("#quinta-lat").value ? Number($("#quinta-lat").value) : null,
     longitude: $("#quinta-lon").value ? Number($("#quinta-lon").value) : null,
-    morada: $("#quinta-morada").value.trim() || null,
     notas: $("#quinta-notas").value.trim() || null,
   };
   if (!dados.nome) { toast("Escreve o nome da quinta."); return; }
@@ -744,7 +747,7 @@ function fecharModais() { $$(".modal").forEach((m) => m.classList.add("hidden"))
 /* ============================================================
    NAVEGAÇÃO
    ============================================================ */
-const TITULOS = { resumo: "Resumo", servicos: "Serviços", quintas: "Quintas", conta: "Conta" };
+const TITULOS = { resumo: "Resumo", servicos: "Serviços", conta: "Conta" };
 
 function mudarView(v) {
   state.view = v;
@@ -755,14 +758,16 @@ function mudarView(v) {
   $("#fab").classList.toggle("hidden", v === "conta");   // não há "+" na Conta
 }
 
+// o "+" cria sempre um serviço (as quintas criam-se na Conta → Quintas)
 function aoCarregarFab() {
-  // o FAB cria conforme a secção
-  switch (state.view) {
-    case "quintas": abrirModalQuinta(); break;
-    default: // resumo ou serviços
-      if (!state.quintas.length) { mudarView("quintas"); abrirModalQuinta(); toast("Cria primeiro a tua quinta."); }
-      else abrirModalServico();
+  if (!state.quintas.length) {
+    mudarView("conta");
+    mudarAbaConta("quintas");
+    abrirModalQuinta();
+    toast("Cria primeiro a tua quinta.");
+    return;
   }
+  abrirModalServico();
 }
 
 /* ============================================================
@@ -994,6 +999,7 @@ function ligarEventos() {
   $("#date-picker").addEventListener("click", (e) => { if (e.target.id === "date-picker") fecharDatePicker(); });
 
   $("#form-quinta").addEventListener("submit", guardarQuinta);
+  $("#nova-quinta").addEventListener("click", () => abrirModalQuinta());
   $("#quinta-apagar").addEventListener("click", apagarQuinta);
   $("#quinta-gps").addEventListener("click", capturarLocalizacaoQuinta);
   $("#quinta-gps-remover").addEventListener("click", () => {
