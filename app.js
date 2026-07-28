@@ -58,8 +58,9 @@ function calcHoras(inicio, fim) {
   return (f - ini) / 60;
 }
 
+// o que a quinta te paga — as gorjetas NÃO entram (são registadas à parte, na Conta)
 function totalServico(s) {
-  return calcHoras(s.hora_inicio, s.hora_fim) * Number(s.valor_hora) + Number(s.gorjeta || 0);
+  return calcHoras(s.hora_inicio, s.hora_fim) * Number(s.valor_hora);
 }
 
 function mesmoMes(dataStr, ref) {
@@ -277,7 +278,7 @@ function servicoItemHTML(s) {
     <div class="item" data-servico="${s.id}">
       <div class="left">
         <div class="title">${escapeHtml(s.quinta_nome || "—")}</div>
-        <div class="sub">${fmtData(s.data)} · ${s.hora_inicio.slice(0,5)}–${s.hora_fim.slice(0,5)} · ${h}${Number(s.gorjeta) ? " · +gorjeta" : ""}</div>
+        <div class="sub">${fmtData(s.data)} · ${s.hora_inicio.slice(0,5)}–${s.hora_fim.slice(0,5)} · ${h}${Number(s.gorjeta) ? " · gorjeta " + fmtEUR(s.gorjeta) : ""}</div>
       </div>
       <div class="right">
         <div class="amount money">${fmtEUR(t)}</div>
@@ -404,10 +405,9 @@ function valorHoraAtual() {
 function atualizarPreviewServico() {
   const valorHora = valorHoraAtual();
   const horas = calcHoras($("#servico-inicio").value, $("#servico-fim").value);
-  const gorjeta = parseNum($("#servico-gorjeta").value);
-  const total = horas * valorHora + gorjeta;
+  const total = horas * valorHora;
   $("#servico-preview").textContent = horas
-    ? `${fmtHoras(horas)} × ${fmtEUR(valorHora)}${gorjeta ? " + " + fmtEUR(gorjeta) : ""} = ${fmtEUR(total)}`
+    ? `${fmtHoras(horas)} × ${fmtEUR(valorHora)} = ${fmtEUR(total)}`
     : "Preenche as horas para ver o total";
 }
 
@@ -809,6 +809,34 @@ function renderConta() {
           <div class="right"><span class="amount money">${fmtEUR(v.ganho)}</span></div>
         </div>`).join("")
     : `<p class="empty">Ainda sem serviços.</p>`;
+
+  renderGorjetas();
+}
+
+// lista de gorjetas: dia, quinta e valor de cada uma
+function renderGorjetas() {
+  const lista = state.servicos.filter((s) => Number(s.gorjeta) > 0);
+  const total = lista.reduce((acc, s) => acc + Number(s.gorjeta), 0);
+
+  $("#gorjetas-total").textContent = fmtEUR(total);
+  $("#gorjetas-vazio").classList.toggle("hidden", lista.length > 0);
+  $("#gorjetas-lista").innerHTML = lista.map((s) => `
+    <div class="item" data-gorjeta="${s.id}">
+      <div class="left">
+        <div class="title">${escapeHtml(s.quinta_nome || "—")}</div>
+        <div class="sub">${fmtData(s.data)}</div>
+      </div>
+      <div class="right"><span class="amount money">${fmtEUR(s.gorjeta)}</span></div>
+    </div>`).join("");
+
+  $$("#gorjetas-lista [data-gorjeta]").forEach((el) =>
+    el.addEventListener("click", () => abrirModalServico(el.dataset.gorjeta)));
+}
+
+function mudarAbaConta(aba) {
+  $$(".conta-aba").forEach((el) => el.classList.add("hidden"));
+  $("#conta-aba-" + aba).classList.remove("hidden");
+  $$("#conta-abas .chip").forEach((c) => c.classList.toggle("active", c.dataset.aba === aba));
 }
 
 async function guardarPerfil(e) {
@@ -975,6 +1003,8 @@ function ligarEventos() {
   });
 
   // conta
+  $$("#conta-abas .chip").forEach((c) =>
+    c.addEventListener("click", () => mudarAbaConta(c.dataset.aba)));
   $("#form-perfil").addEventListener("submit", guardarPerfil);
   $("#form-password").addEventListener("submit", trocarPassword);
   $("#conta-logout").addEventListener("click", () => sb.auth.signOut());

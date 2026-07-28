@@ -137,7 +137,15 @@
 
       <!-- ---- CONTA ---- -->
       <section id="view-conta" class="view hidden">
-        <h3 class="section-title" style="margin-top:0">Os teus dados</h3>
+        <div class="filter-chips" id="conta-abas">
+          <button class="chip active" data-aba="dados">Dados</button>
+          <button class="chip" data-aba="estatisticas">Estatísticas</button>
+          <button class="chip" data-aba="gorjetas">Gorjetas</button>
+          <button class="chip" data-aba="seguranca">Segurança</button>
+        </div>
+
+        <!-- ---- aba: DADOS ---- -->
+        <div class="conta-aba" id="conta-aba-dados">
         <form id="form-perfil" class="card">
           <div class="row">
             <label>Nome
@@ -159,7 +167,10 @@
           <button type="submit" class="btn btn-primary btn-block" style="margin-top:16px">Guardar dados</button>
         </form>
 
-        <h3 class="section-title">Estatísticas</h3>
+        </div><!-- fim aba Dados -->
+
+        <!-- ---- aba: ESTATÍSTICAS ---- -->
+        <div class="conta-aba hidden" id="conta-aba-estatisticas">
         <div class="cards-grid">
           <div class="card stat">
             <span class="stat-label">Total ganho</span>
@@ -181,8 +192,21 @@
 
         <h3 class="section-title">Por quinta <span class="muted">(desde sempre)</span></h3>
         <div id="conta-por-quinta" class="list"></div>
+        </div><!-- fim aba Estatísticas -->
 
-        <h3 class="section-title">Alterar palavra-passe</h3>
+        <!-- ---- aba: GORJETAS ---- -->
+        <div class="conta-aba hidden" id="conta-aba-gorjetas">
+          <div class="card stat big">
+            <span class="stat-label">Total de gorjetas</span>
+            <span class="stat-value money" id="gorjetas-total">0,00 €</span>
+          </div>
+          <div id="gorjetas-lista" class="list"></div>
+          <p id="gorjetas-vazio" class="empty hidden">Ainda não registaste gorjetas.<br />Escreve o valor ao adicionar um serviço.</p>
+        </div>
+
+        <!-- ---- aba: SEGURANÇA ---- -->
+        <div class="conta-aba hidden" id="conta-aba-seguranca">
+        <h3 class="section-title" style="margin-top:0">Alterar palavra-passe</h3>
         <form id="form-password" class="card">
           <label>Palavra-passe atual
             <input type="password" id="pw-atual" required autocomplete="current-password" placeholder="••••••••" />
@@ -197,6 +221,7 @@
         </form>
 
         <button id="conta-logout" class="btn btn-ghost btn-block" style="margin-top:18px">Terminar sessão</button>
+        </div><!-- fim aba Segurança -->
       </section>
 
     </main>
@@ -241,11 +266,11 @@
             <input type="hidden" id="servico-fim" />
           </label>
         </div>
-        <label>Gorjeta / extra (€) <span class="muted">opcional</span>
-          <input type="text" inputmode="decimal" id="servico-gorjeta" placeholder="0,00" />
+        <label>Gorjeta (€)
+          <input type="text" inputmode="decimal" id="servico-gorjeta" />
         </label>
-        <label>Notas <span class="muted">opcional</span>
-          <input type="text" id="servico-notas" placeholder="ex: casamento, 200 pessoas" />
+        <label>Notas
+          <input type="text" id="servico-notas" />
         </label>
         <label class="check">
           <input type="checkbox" id="servico-pago" /> Já recebi este serviço

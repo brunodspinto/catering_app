@@ -122,7 +122,7 @@ form input:focus,form select:focus{border-color:var(--accent)}
 .empty{color:var(--muted);text-align:center;padding:40px 20px}
 
 /* filtros */
-.filter-chips{display:flex;gap:8px;margin-bottom:14px}
+.filter-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
 .chip{background:var(--card);border:1px solid var(--line);color:var(--muted);
   padding:8px 14px;border-radius:999px;font-size:.85rem;cursor:pointer}
 .chip.active{background:var(--accent);color:#06281f;border-color:var(--accent);font-weight:700}
