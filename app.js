@@ -860,7 +860,10 @@ function renderConta() {
 function renderGorjetas() {
   const lista = state.servicos.filter((s) => Number(s.gorjeta) > 0);
   const total = lista.reduce((acc, s) => acc + Number(s.gorjeta), 0);
+  const doMes = lista.filter((s) => mesmoMes(s.data, new Date()))
+                     .reduce((acc, s) => acc + Number(s.gorjeta), 0);
 
+  $("#gorjetas-mes").textContent = fmtEUR(doMes);
   $("#gorjetas-total").textContent = fmtEUR(total);
   $("#gorjetas-vazio").classList.toggle("hidden", lista.length > 0);
   $("#gorjetas-lista").innerHTML = lista.map((s) => `

@@ -202,10 +202,17 @@
 
         <!-- ---- aba: GORJETAS ---- -->
         <div class="conta-aba hidden" id="conta-aba-gorjetas">
-          <div class="card stat big">
-            <span class="stat-label">Total de gorjetas</span>
-            <span class="stat-value money" id="gorjetas-total">0,00 €</span>
+          <div class="cards-grid">
+            <div class="card stat">
+              <span class="stat-label">Este mês</span>
+              <span class="stat-value money" id="gorjetas-mes">0,00 €</span>
+            </div>
+            <div class="card stat">
+              <span class="stat-label">Total</span>
+              <span class="stat-value money" id="gorjetas-total">0,00 €</span>
+            </div>
           </div>
+          <h3 class="section-title">Todas as gorjetas</h3>
           <div id="gorjetas-lista" class="list"></div>
           <p id="gorjetas-vazio" class="empty hidden">Ainda não registaste gorjetas.<br />Escreve o valor ao adicionar um serviço.</p>
         </div>
