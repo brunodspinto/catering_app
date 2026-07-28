@@ -208,6 +208,16 @@ form input:focus,form select:focus{border-color:var(--accent)}
 .dp-actions,.tp-actions{ display:flex; gap:12px; margin-top:16px }
 .dp-actions .btn,.tp-actions .btn{ flex:1 }
 
+/* ---------- Resumo "quanto te devem" ---------- */
+#servicos-resumo{margin-bottom:14px}
+#servicos-resumo-lista{margin-top:10px}
+.resumo-linha{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0}
+.resumo-linha + .resumo-linha{border-top:1px solid var(--line)}
+.resumo-linha.total{font-weight:800}
+.resumo-linha .title{font-weight:700}
+.resumo-linha .sub{color:var(--muted);font-size:.8rem;margin-top:2px}
+.resumo-linha .amount{font-weight:800;flex-shrink:0}
+
 /* ---------- Localização da quinta ---------- */
 .gps-info{ margin:8px 0 0; text-align:center; font-size:.8rem; color:var(--muted) }
 .linkish{ background:none; border:none; color:var(--accent); font-family:inherit;

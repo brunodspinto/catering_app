@@ -296,6 +296,44 @@ function renderServicos() {
   $("#servicos-vazio").classList.toggle("hidden", state.servicos.length > 0);
   wrap.innerHTML = lista.map(servicoItemHTML).join("");
   ligarCliquesServico("#servicos-lista");
+  renderPorReceberPorQuinta();
+}
+
+// quanto (e quantas horas) cada quinta ainda te deve
+function renderPorReceberPorQuinta() {
+  const box = $("#servicos-resumo");
+  const pendentes = state.servicos.filter((s) => s.estado === "pendente");
+  const mostrar = state.filtroServico === "pendente" && pendentes.length > 1;
+  box.classList.toggle("hidden", !mostrar);
+  if (!mostrar) return;
+
+  const porQuinta = {};
+  for (const s of pendentes) {
+    const nome = s.quinta_nome || "—";
+    if (!porQuinta[nome]) porQuinta[nome] = { n: 0, horas: 0, valor: 0 };
+    porQuinta[nome].n++;
+    porQuinta[nome].horas += calcHoras(s.hora_inicio, s.hora_fim);
+    porQuinta[nome].valor += totalServico(s);
+  }
+
+  const entradas = Object.entries(porQuinta).sort((a, b) => b[1].valor - a[1].valor);
+  const totalValor = entradas.reduce((acc, [, v]) => acc + v.valor, 0);
+  const totalHoras = entradas.reduce((acc, [, v]) => acc + v.horas, 0);
+
+  const linha = (titulo, sub, valor, classe = "") => `
+    <div class="resumo-linha ${classe}">
+      <div class="left">
+        <div class="title">${titulo}</div>
+        <div class="sub">${sub}</div>
+      </div>
+      <span class="amount warn">${fmtEUR(valor)}</span>
+    </div>`;
+
+  $("#servicos-resumo-lista").innerHTML =
+    entradas.map(([nome, v]) =>
+      linha(escapeHtml(nome), `${v.n} ${v.n === 1 ? "serviço" : "serviços"} · ${fmtHoras(v.horas)}`, v.valor)
+    ).join("")
+    + (entradas.length > 1 ? linha("Total", fmtHoras(totalHoras), totalValor, "total") : "");
 }
 
 function ligarCliquesServico(sel) {
