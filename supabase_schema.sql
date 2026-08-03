@@ -27,11 +27,11 @@ create table if not exists public.servicos (
   quinta_id    uuid references public.quintas(id) on delete set null,
   quinta_nome  text,                                   -- "fotografia" do nome na altura
   data         date not null,
-  hora_inicio  time not null,
-  hora_fim     time not null,
+  hora_inicio  time,                                -- vazio nos serviços agendados
+  hora_fim     time,
   valor_hora   numeric(10,2) not null default 0,       -- "fotografia" do valor/hora na altura
   gorjeta      numeric(10,2) not null default 0,
-  estado       text not null default 'pendente',       -- 'pago' | 'pendente'
+  estado       text not null default 'pendente',       -- 'agendado' | 'pendente' | 'pago'
   notas        text,
   created_at   timestamptz not null default now()
 );

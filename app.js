@@ -20,6 +20,7 @@ const state = {
   profile: null,
   view: "resumo",
   filtroServico: "todos",
+  modoServico: "feito",       // "feito" (já realizado) ou "agendado"
   mes: new Date(),            // mês mostrado no resumo
   editandoServico: null,      // serviço a ser editado (para manter o valor/hora histórico)
   horaInicioTocada: false,    // o utilizador já escolheu a hora à mão neste serviço?
@@ -42,6 +43,14 @@ const fmtHoras = (h) => {
   const horas = Math.floor(h);
   const min = Math.round((h - horas) * 60);
   return min ? `${horas}h${String(min).padStart(2, "0")}` : `${horas}h`;
+};
+
+// "Sáb, 15 ago" — para serviços agendados (saber o dia da semana importa)
+const fmtDataLonga = (iso) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  const s = new Date(y, m - 1, d).toLocaleDateString("pt-PT",
+    { weekday: "short", day: "numeric", month: "short" });
+  return s.charAt(0).toUpperCase() + s.slice(1);
 };
 
 const nomeMes = (d) =>
@@ -225,7 +234,8 @@ function renderTudo() {
 function renderResumo() {
   $("#month-label").textContent = nomeMes(state.mes);
 
-  const doMes = state.servicos.filter((s) => mesmoMes(s.data, state.mes));
+  // os agendados não entram em nenhuma conta
+  const doMes = state.servicos.filter((s) => s.estado !== "agendado" && mesmoMes(s.data, state.mes));
   let ganho = 0, pendente = 0, horas = 0;
   const porQuinta = {};
 
@@ -260,8 +270,8 @@ function renderResumo() {
       </div>`).join("");
   }
 
-  // recentes
-  const recentes = state.servicos.slice(0, 5);
+  // recentes (só os já realizados)
+  const recentes = state.servicos.filter((s) => s.estado !== "agendado").slice(0, 5);
   $("#resumo-recentes").innerHTML = recentes.length
     ? recentes.map(servicoItemHTML).join("")
     : `<p class="empty">Sem serviços.</p>`;
@@ -272,13 +282,27 @@ function renderResumo() {
    RENDER — SERVIÇOS
    ============================================================ */
 function servicoItemHTML(s) {
+  // agendado: ainda não tem horas nem valor
+  if (s.estado === "agendado") {
+    return `
+    <div class="item" data-servico="${s.id}">
+      <div class="left">
+        <div class="title">${escapeHtml(s.quinta_nome || "—")}</div>
+        <div class="sub">${fmtDataLonga(s.data)}${s.notas ? " · " + escapeHtml(s.notas) : ""}</div>
+      </div>
+      <div class="right"><span class="badge agendado">Agendado</span></div>
+    </div>`;
+  }
+
   const t = totalServico(s);
   const h = fmtHoras(calcHoras(s.hora_inicio, s.hora_fim));
+  const horario = (s.hora_inicio && s.hora_fim)
+    ? `${s.hora_inicio.slice(0, 5)}–${s.hora_fim.slice(0, 5)} · ${h}` : "sem horas";
   return `
     <div class="item" data-servico="${s.id}">
       <div class="left">
         <div class="title">${escapeHtml(s.quinta_nome || "—")}</div>
-        <div class="sub">${fmtData(s.data)} · ${s.hora_inicio.slice(0,5)}–${s.hora_fim.slice(0,5)} · ${h}${Number(s.gorjeta) ? " · gorjeta " + fmtEUR(s.gorjeta) : ""}</div>
+        <div class="sub">${fmtData(s.data)} · ${horario}${Number(s.gorjeta) ? " · gorjeta " + fmtEUR(s.gorjeta) : ""}</div>
       </div>
       <div class="right">
         <div class="amount money">${fmtEUR(t)}</div>
@@ -291,9 +315,21 @@ function renderServicos() {
   let lista = state.servicos;
   if (state.filtroServico !== "todos")
     lista = lista.filter((s) => s.estado === state.filtroServico);
+  // agendados: mostrar primeiro o que está mais próximo
+  if (state.filtroServico === "agendado")
+    lista = [...lista].sort((a, b) => a.data.localeCompare(b.data));
 
   const wrap = $("#servicos-lista");
-  $("#servicos-vazio").classList.toggle("hidden", state.servicos.length > 0);
+  const vazio = $("#servicos-vazio");
+  vazio.classList.toggle("hidden", lista.length > 0);
+  if (!lista.length) {
+    vazio.innerHTML =
+      !state.servicos.length ? "Ainda não há serviços. Carrega no <b>+</b> para adicionar."
+      : state.filtroServico === "agendado" ? "Não tens serviços marcados.<br />Carrega no <b>+</b> e escolhe <b>Agendar</b>."
+      : state.filtroServico === "pendente" ? "Não tens nada por receber. 🎉"
+      : state.filtroServico === "pago"     ? "Ainda não marcaste nenhum serviço como pago."
+      : "Sem serviços.";
+  }
   wrap.innerHTML = lista.map(servicoItemHTML).join("");
   ligarCliquesServico("#servicos-lista");
   renderPorReceberPorQuinta();
@@ -407,6 +443,8 @@ function abrirModalServico(id) {
   state.editandoServico = novo ? null : (state.servicos.find((x) => x.id === id) || null);
 
   state.horaInicioTocada = false;
+  state.notasAuto = "";
+  modoServico(state.editandoServico?.estado === "agendado" ? "agendado" : "feito");
 
   if (novo) {
     preencherSelectQuintas();
@@ -426,7 +464,38 @@ function abrirModalServico(id) {
     $("#servico-pago").checked = s.estado === "pago";
   }
   atualizarPreviewServico();
+  sincronizarComAgendado();
   abrirModal("#modal-servico");
+}
+
+// "feito" = serviço já realizado (com horas) | "agendado" = só marcado (quinta + dia)
+function modoServico(modo) {
+  state.modoServico = modo;
+  $$("#servico-modo .seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.modo === modo));
+  $$("#form-servico .so-feito").forEach((el) => el.classList.toggle("hidden", modo === "agendado"));
+  sincronizarComAgendado();
+}
+
+// há um serviço agendado para esta quinta e este dia? (então é esse que estou a fazer)
+function agendadoCorrespondente() {
+  if ($("#servico-id").value) return null;          // estou a editar, não a criar
+  if (state.modoServico !== "feito") return null;   // só ao registar um serviço realizado
+  const qid = $("#servico-quinta").value, data = $("#servico-data").value;
+  if (!qid || !data) return null;
+  return state.servicos.find(
+    (s) => s.estado === "agendado" && s.quinta_id === qid && s.data === data) || null;
+}
+
+// se este dia/quinta já estava agendado, traz as notas desse agendado
+// (a conclusão em si acontece ao guardar, sem avisos no formulário)
+function sincronizarComAgendado() {
+  if ($("#servico-id").value) return;   // a editar: não mexer nas notas
+  const ag = agendadoCorrespondente();
+  const campo = $("#servico-notas");
+  if (campo.value === "" || campo.value === state.notasAuto) {
+    campo.value = ag ? (ag.notas || "") : "";
+    state.notasAuto = campo.value;
+  }
 }
 
 // hora habitual de início definida na quinta escolhida (vazio se não tiver)
@@ -459,11 +528,23 @@ async function guardarServico(e) {
   const qid = $("#servico-quinta").value;
   const q = state.quintas.find((x) => x.id === qid);
   if (!q) { toast("Escolhe uma quinta."); return; }
-  if (!$("#servico-inicio").value || !$("#servico-fim").value) {
+  const agendado = state.modoServico === "agendado";
+  if (!$("#servico-data").value) { toast("Escolhe a data."); return; }
+  if (!agendado && (!$("#servico-inicio").value || !$("#servico-fim").value)) {
     toast("Escolhe a hora de entrada e de saída."); return;
   }
 
-  const dados = {
+  const dados = agendado ? {
+    quinta_id: qid,
+    quinta_nome: q.nome,
+    valor_hora: valorHoraAtual(),
+    data: $("#servico-data").value,
+    hora_inicio: null,
+    hora_fim: null,
+    gorjeta: 0,
+    estado: "agendado",
+    notas: $("#servico-notas").value.trim() || null,
+  } : {
     quinta_id: qid,
     quinta_nome: q.nome,
     valor_hora: valorHoraAtual(),    // "fotografia" do valor (mantém histórico ao editar)
@@ -475,13 +556,17 @@ async function guardarServico(e) {
     notas: $("#servico-notas").value.trim() || null,
   };
 
+  // se este dia/quinta já estava agendado, conclui esse em vez de criar outro
+  const ag = agendadoCorrespondente();
+
   let error;
-  if (id) ({ error } = await sb.from("servicos").update(dados).eq("id", id));
-  else    ({ error } = await sb.from("servicos").insert(dados));
+  if (id)      ({ error } = await sb.from("servicos").update(dados).eq("id", id));
+  else if (ag) ({ error } = await sb.from("servicos").update(dados).eq("id", ag.id));
+  else         ({ error } = await sb.from("servicos").insert(dados));
 
   if (error) { toast("Erro: " + error.message); return; }
   fecharModais();
-  toast(id ? "Serviço atualizado." : "Serviço guardado.");
+  toast(id ? "Serviço atualizado." : ag ? "Serviço agendado concluído ✅" : "Serviço guardado.");
   await carregarTudo();
 }
 
@@ -619,6 +704,7 @@ function dpRender() {
 function dpEscolher(iso) {
   DP.selected = iso;
   setData(DP.trigger.dataset.target, iso);
+  if (DP.trigger.dataset.target === "servico-data") sincronizarComAgendado();
   fecharDatePicker();
 }
 
@@ -815,7 +901,8 @@ function renderConta() {
 
   let ganho = 0, pendente = 0, horas = 0;
   const porQuinta = {};
-  for (const s of state.servicos) {
+  const feitos = state.servicos.filter((s) => s.estado !== "agendado");
+  for (const s of feitos) {
     const t = totalServico(s);
     const h = calcHoras(s.hora_inicio, s.hora_fim);
     ganho += t; horas += h;
@@ -829,7 +916,7 @@ function renderConta() {
 
   $("#conta-ganho").textContent = fmtEUR(ganho);
   $("#conta-horas").textContent = fmtHoras(horas);
-  $("#conta-num").textContent = state.servicos.length;
+  $("#conta-num").textContent = feitos.length;
   $("#conta-pendente").textContent = fmtEUR(pendente);
 
   const entradas = Object.entries(porQuinta).sort((a, b) => b[1].ganho - a[1].ganho);
@@ -1037,11 +1124,14 @@ function ligarEventos() {
   $("#form-servico").addEventListener("submit", guardarServico);
   $("#servico-apagar").addEventListener("click", apagarServico);
   $("#servico-gorjeta").addEventListener("input", atualizarPreviewServico);
+  $$("#servico-modo .seg-btn").forEach((b) =>
+    b.addEventListener("click", () => modoServico(b.dataset.modo)));
   // trocar de quinta: num serviço novo, propõe a hora habitual dessa quinta
   $("#servico-quinta").addEventListener("change", () => {
     const novo = !$("#servico-id").value;
     if (novo && !state.horaInicioTocada) setHora("servico-inicio", horaPadraoDaQuinta());
     atualizarPreviewServico();
+    sincronizarComAgendado();
   });
 
   // seletor de horas próprio

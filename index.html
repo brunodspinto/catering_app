@@ -122,6 +122,7 @@
       <section id="view-servicos" class="view hidden">
         <div class="filter-chips" id="servicos-filtros">
           <button class="chip active" data-f="todos">Todos</button>
+          <button class="chip" data-f="agendado">Agendados</button>
           <button class="chip" data-f="pendente">Por receber</button>
           <button class="chip" data-f="pago">Pagos</button>
         </div>
@@ -276,6 +277,10 @@
       </div>
       <form id="form-servico">
         <input type="hidden" id="servico-id" />
+        <div class="seg" id="servico-modo">
+          <button type="button" class="seg-btn active" data-modo="feito">Feito</button>
+          <button type="button" class="seg-btn" data-modo="agendado">Agendar</button>
+        </div>
         <label>Quinta
           <select id="servico-quinta" required></select>
         </label>
@@ -283,7 +288,7 @@
           <button type="button" class="date-trigger" data-target="servico-data" data-titulo="Data do serviço">Escolher data</button>
           <input type="hidden" id="servico-data" />
         </label>
-        <div class="row">
+        <div class="row so-feito">
           <label>Entrada
             <button type="button" class="time-trigger" data-target="servico-inicio" data-titulo="Hora de entrada">--:--</button>
             <input type="hidden" id="servico-inicio" />
@@ -293,17 +298,17 @@
             <input type="hidden" id="servico-fim" />
           </label>
         </div>
-        <label>Gorjeta (€)
+        <label class="so-feito">Gorjeta (€)
           <input type="text" inputmode="decimal" id="servico-gorjeta" />
         </label>
         <label>Notas
           <input type="text" id="servico-notas" />
         </label>
-        <label class="check">
+        <label class="check so-feito">
           <input type="checkbox" id="servico-pago" /> Já recebi este serviço
         </label>
 
-        <div class="cards-grid" id="servico-preview">
+        <div class="cards-grid so-feito" id="servico-preview">
           <div class="card stat">
             <span class="stat-label">Horas</span>
             <span class="stat-value" id="preview-horas">—</span>
