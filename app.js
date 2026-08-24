@@ -451,7 +451,9 @@ function abrirModalServico(id) {
     setData("servico-data", dataSugeridaServico());
     setHora("servico-inicio", horaPadraoDaQuinta());     // hora habitual da quinta
     setHora("servico-fim", horaAgoraArredondada());      // hora a que estás agora
-    sugerirQuintaPelaLocalizacao();                      // e em que quinta estás
+    detetarQuinta(true);                                 // e em que quinta estás
+    $("#detetar-quinta-linha").classList.toggle("hidden",
+      !state.quintas.some((q) => q.latitude != null));
   } else {
     const s = state.editandoServico;
     if (!s) return;
@@ -761,19 +763,43 @@ function quintaMaisProxima(coords) {
 }
 
 // ao criar um serviço, tenta descobrir em que quinta estás (não bloqueia nada)
-async function sugerirQuintaPelaLocalizacao() {
+// vê se já há autorização SEM fazer aparecer o pedido do telemóvel
+async function estadoLocalizacao() {
+  try {
+    if (!navigator.permissions || !navigator.permissions.query) return "desconhecido";
+    return (await navigator.permissions.query({ name: "geolocation" })).state;
+  } catch (e) { return "desconhecido"; }
+}
+
+// auto = true  -> ao abrir o "+" (só age se não incomodar)
+// auto = false -> o utilizador tocou no botão 📍 (aí pode pedir à vontade)
+async function detetarQuinta(auto) {
   if (!state.quintas.some((q) => q.latitude != null)) return;  // nenhuma quinta tem localização
+
+  if (auto) {
+    const estado = await estadoLocalizacao();
+    if (estado === "denied") return;                    // já recusou: nunca mais pedir
+    if (estado !== "granted") {
+      // ainda não deu autorização: pergunta UMA única vez e nunca mais
+      if (localStorage.getItem("bandeja_gps_pedido")) return;
+      localStorage.setItem("bandeja_gps_pedido", "1");
+    }
+  }
+
   try {
     const perto = quintaMaisProxima(await obterLocalizacao());
-    if (!perto) return;
-    // só aplica se ainda estivermos num serviço novo por preencher
     if ($("#modal-servico").classList.contains("hidden")) return;
     if ($("#servico-id").value) return;
-    if ($("#servico-quinta").value === perto.quinta.id) return;
-    $("#servico-quinta").value = perto.quinta.id;
-    $("#servico-quinta").dispatchEvent(new Event("change"));
+    if (!perto) { if (!auto) toast("Não estás perto de nenhuma quinta guardada."); return; }
+    if ($("#servico-quinta").value !== perto.quinta.id) {
+      $("#servico-quinta").value = perto.quinta.id;
+      $("#servico-quinta").dispatchEvent(new Event("change"));
+    }
     toast(`📍 Estás na ${perto.quinta.nome}`);
-  } catch (e) { /* sem autorização ou sem sinal: fica tudo como está */ }
+  } catch (e) {
+    if (!auto) toast(e && e.code === 1 ? "Autorização de localização recusada."
+                                       : "Não consegui obter a localização.");
+  }
 }
 
 function mostrarInfoLocalizacao(precisao) {
@@ -1156,6 +1182,7 @@ function ligarEventos() {
   $("#nova-quinta").addEventListener("click", () => abrirModalQuinta());
   $("#quinta-apagar").addEventListener("click", apagarQuinta);
   $("#quinta-gps").addEventListener("click", capturarLocalizacaoQuinta);
+  $("#detetar-quinta").addEventListener("click", () => detetarQuinta(false));
   $("#quinta-gps-remover").addEventListener("click", () => {
     $("#quinta-lat").value = ""; $("#quinta-lon").value = "";
     mostrarInfoLocalizacao();
