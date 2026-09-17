@@ -56,8 +56,8 @@ create policy "servicos_own" on public.servicos
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- ============================================================
---  Perfis de utilizador (nome, apelido, número, username) +
---  login por username
+--  Perfis de utilizador (nome, apelido, número, username)
+--  O username só é mostrado na app; o login é feito por email.
 -- ============================================================
 create table if not exists public.profiles (
   id         uuid primary key references auth.users(id) on delete cascade,
@@ -99,9 +99,6 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- descobrir o email a partir do username (para entrar com username)
-create or replace function public.email_do_username(uname text)
-returns text language sql security definer set search_path = public as $$
-  select email from public.profiles where lower(username) = lower(uname) limit 1;
-$$;
-grant execute on function public.email_do_username(text) to anon, authenticated;
+-- o login é só por email: remove a função antiga de login por username
+-- (expunha emails a quem não tinha sessão)
+drop function if exists public.email_do_username(text);

@@ -104,7 +104,6 @@ function setupAuthUI() {
     $("#switch-link").textContent = modoCriarConta ? "Entrar" : "Criar conta";
     $("#forgot-row").classList.toggle("hidden", modoCriarConta);
     $(".signup-only").classList.toggle("hidden", !modoCriarConta);
-    $("#auth-email-label").textContent = modoCriarConta ? "Email" : "Email ou username";
     // ajuda o iPhone/iCloud a guardar a password (Face ID) ao criar conta
     $("#auth-password").setAttribute("autocomplete", modoCriarConta ? "new-password" : "current-password");
     $("#auth-error").classList.add("hidden");
@@ -114,10 +113,11 @@ function setupAuthUI() {
     e.preventDefault();
     if (!configOK) { showAuthError("Falta configurar o config.js."); return; }
     const email = $("#auth-email").value.trim();
-    if (!email) { showAuthError("Escreve primeiro o teu email aqui em cima."); return; }
+    if (!emailValido(email)) { showAuthError("Escreve primeiro o teu email aqui em cima."); return; }
     const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
     if (error) { showAuthError(traduzErro(error.message)); return; }
-    toast("Email enviado! Vê a tua caixa de correio para repor a palavra-passe.");
+    // mensagem igual exista ou não a conta (não revela que emails estão registados)
+    toast("Se existir uma conta com este email, vais receber um link para repor a palavra-passe.");
   });
 
   $("#form-recovery").addEventListener("submit", guardarRecovery);
@@ -125,43 +125,36 @@ function setupAuthUI() {
   $("#auth-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!configOK) { showAuthError("Falta configurar o config.js (ver README)."); return; }
+    const email = $("#auth-email").value.trim();
     const password = $("#auth-password").value;
     const btn = $("#auth-submit");
     btn.disabled = true;
     btn.textContent = "A processar…";
     try {
+      if (!emailValido(email)) throw new Error("Escreve um email válido.");
       if (modoCriarConta) {
         // ----- criar conta -----
         const nome = $("#auth-nome").value.trim();
         const apelido = $("#auth-apelido").value.trim();
         const numero = $("#auth-numero").value.trim();
         const username = $("#auth-username").value.trim();
-        const email = $("#auth-email").value.trim();
         if (!nome) throw new Error("Escreve o teu nome.");
-        if (!email.includes("@")) throw new Error("Escreve um email válido.");
         if (!/^[a-zA-Z0-9_.]{3,}$/.test(username))
           throw new Error("Username inválido: mínimo 3 caracteres, só letras, números, _ ou .");
-        const { error } = await sb.auth.signUp({
+        const { data, error } = await sb.auth.signUp({
           email, password,
           options: { data: { nome, apelido, numero: numero || null, username } },
         });
         if (error) throw error;
-        toast("Conta criada! Já podes entrar.");
+        // com a confirmação de email ligada não há sessão até confirmar
+        toast(data.session ? "Conta criada! ✅" : "Conta criada! Confirma o teu email para entrar.");
       } else {
-        // ----- entrar (email OU username) -----
-        const id = $("#auth-email").value.trim();
-        let email = id;
-        if (!id.includes("@")) {
-          const { data: resolvido, error: rpcErr } = await sb.rpc("email_do_username", { uname: id });
-          if (rpcErr) throw rpcErr;
-          if (!resolvido) throw new Error("Não há nenhuma conta com esse username.");
-          email = resolvido;
-        }
+        // ----- entrar (só por email) -----
         const { error } = await sb.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
     } catch (err) {
-      showAuthError(traduzErro(err.message));
+      showAuthError(modoCriarConta ? traduzErro(err.message) : erroLogin(err.message));
     } finally {
       btn.disabled = false;
       btn.textContent = modoCriarConta ? "Criar conta" : "Entrar";
@@ -175,9 +168,23 @@ function showAuthError(msg) {
   el.classList.remove("hidden");
 }
 
+const emailValido = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+// erros do login: mensagem genérica, sem dizer se o email existe
+function erroLogin(msg) {
+  if (/escreve um email/i.test(msg)) return msg;
+  if (/not confirmed/i.test(msg)) return "Confirma o email antes de entrar (vê a tua caixa de correio).";
+  if (/rate limit|too many/i.test(msg)) return "Demasiadas tentativas. Espera uns minutos e tenta de novo.";
+  if (/fetch|network/i.test(msg)) return "Sem ligação à internet.";
+  return "Email ou senha errados.";
+}
+
 function traduzErro(msg) {
-  if (/invalid login/i.test(msg)) return "Email/username ou senha errados.";
+  if (/invalid login/i.test(msg)) return "Email ou senha errados.";
   if (/already registered/i.test(msg)) return "Esse email já tem conta. Tenta entrar.";
+  // o trigger que cria o perfil falha quando o username já existe (índice único)
+  if (/database error saving new user/i.test(msg))
+    return "Não foi possível criar a conta. Esse username já deve estar a ser usado — escolhe outro.";
   if (/duplicate key|already exists|unique/i.test(msg)) return "Esse username já está a ser usado. Escolhe outro.";
   if (/confirm/i.test(msg)) return "Confirma o email antes de entrar (vê a tua caixa de correio).";
   if (/password/i.test(msg)) return "A senha tem de ter pelo menos 6 caracteres.";

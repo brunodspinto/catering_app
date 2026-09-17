@@ -9,3 +9,17 @@ desktop.ini
 
 # Dependências (caso um dia uses npm)
 node_modules/
+
+# Configurações de editores e ferramentas
+.idea/
+.vscode/
+.claude/
+
+# Variáveis de ambiente / segredos
+.env
+.env.*
+
+# Bases de dados locais e backups
+*.sqlite
+*.db
+*.bak

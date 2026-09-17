@@ -41,13 +41,13 @@
             <span>Número (opcional)</span>
           </label>
           <label class="fl">
-            <input type="text" id="auth-username" autocomplete="username" placeholder=" " />
+            <input type="text" id="auth-username" autocomplete="off" placeholder=" " />
             <span>Username</span>
           </label>
         </div>
         <label class="fl">
-          <input type="text" id="auth-email" required autocomplete="username" placeholder=" " />
-          <span id="auth-email-label">Email ou username</span>
+          <input type="email" id="auth-email" required autocomplete="username" inputmode="email" placeholder=" " />
+          <span id="auth-email-label">Email</span>
         </label>
         <label class="fl">
           <input type="password" id="auth-password" required placeholder=" " minlength="6" autocomplete="current-password" />
@@ -175,7 +175,7 @@
             </label>
           </div>
           <label>Número <span class="muted">opcional</span>
-            <input type="tel" id="perfil-numero" inputmode="tel" placeholder="912 345 678" />
+            <input type="tel" id="perfil-numero" inputmode="tel" placeholder="9xx xxx xxx" />
           </label>
           <label>Username
             <input type="text" id="perfil-username" placeholder="ex: bruno_p" />
