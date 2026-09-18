@@ -100,7 +100,7 @@ To run the app against your own backend:
    - **Row Level Security** on every table, with policies that only let users read and write their own rows (`auth.uid() = user_id`)
    - a trigger that creates a profile when a user signs up
 
-   The script contains no functions callable by unauthenticated clients. If your database was created with an older version of the schema, run the commented migration block at the end of the file.
+   The script contains no functions callable by unauthenticated clients. It also removes the old `email_do_username` function, if it exists.
 3. **Configure the client:** in **Project Settings → API**, copy the project URL and the `anon` public key, then edit `config.js`:
 
    ```js

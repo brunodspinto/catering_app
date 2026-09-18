@@ -18,6 +18,8 @@ node_modules/
 # Variáveis de ambiente / segredos
 .env
 .env.*
+*.key
+*.pem
 
 # Bases de dados locais e backups
 *.sqlite
