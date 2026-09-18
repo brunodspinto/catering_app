@@ -24,6 +24,8 @@ const state = {
   mes: new Date(),            // mês mostrado no resumo
   editandoServico: null,      // serviço a ser editado (para manter o valor/hora histórico)
   horaInicioTocada: false,    // o utilizador já escolheu a hora à mão neste serviço?
+  novoServicoId: null,        // id do serviço novo no formulário aberto (ver novoId)
+  novaQuintaId: null,         // id da quinta nova no formulário aberto
 };
 
 // ---------- Atalhos ----------
@@ -57,14 +59,31 @@ const nomeMes = (d) =>
   d.toLocaleDateString("pt-PT", { month: "long", year: "numeric" });
 
 // horas entre "HH:MM" e "HH:MM" (lida com passar da meia-noite)
+// entrada igual à saída é um horário inválido (não um turno de 24h): devolve 0
 function calcHoras(inicio, fim) {
   if (!inicio || !fim) return 0;
   const [h1, m1] = inicio.split(":").map(Number);
   const [h2, m2] = fim.split(":").map(Number);
   let ini = h1 * 60 + m1;
   let f = h2 * 60 + m2;
-  if (f <= ini) f += 24 * 60; // terminou no dia seguinte
+  if (f === ini) return 0;
+  if (f < ini) f += 24 * 60; // terminou no dia seguinte
   return (f - ini) / 60;
+}
+
+// a partir de quantas horas um turno é invulgar (avisa, mas deixa guardar)
+const TURNO_LONGO_HORAS = 16;
+
+// valida o horário de um serviço realizado
+// devolve { erro } (impede guardar), { aviso } (só informa) ou {}
+function validarHorario(inicio, fim) {
+  if (!inicio || !fim) return { erro: "Escolhe a hora de entrada e de saída." };
+  if (calcHoras(inicio, fim) === 0)
+    return { erro: "A hora de saída tem de ser diferente da hora de entrada." };
+  const horas = calcHoras(inicio, fim);
+  if (horas > TURNO_LONGO_HORAS)
+    return { aviso: `Turno de ${fmtHoras(horas)} — confirma se as horas estão certas.` };
+  return {};
 }
 
 // o que a quinta te paga — as gorjetas NÃO entram (são registadas à parte, na Conta)
@@ -387,19 +406,21 @@ function ligarCliquesServico(sel) {
   $$(`${sel} [data-pago]`).forEach((el) => {
     el.addEventListener("click", (e) => {
       e.stopPropagation();
-      togglePagoServico(el.dataset.pago);
+      togglePagoServico(el.dataset.pago, el);
     });
   });
 }
 
-async function togglePagoServico(id) {
-  const s = state.servicos.find((x) => x.id === id);
-  if (!s) return;
-  const novo = s.estado === "pago" ? "pendente" : "pago";
-  const { error } = await sb.from("servicos").update({ estado: novo }).eq("id", id);
-  if (error) { toast("Erro: " + error.message); return; }
-  toast(novo === "pago" ? "Marcado como pago ✅" : "Marcado como por receber");
-  await carregarTudo();
+async function togglePagoServico(id, botao) {
+  await executarMutacao(botao, async () => {
+    const s = state.servicos.find((x) => x.id === id);
+    if (!s) return;
+    const novo = s.estado === "pago" ? "pendente" : "pago";
+    const { error } = await sb.from("servicos").update({ estado: novo }).eq("id", id);
+    if (error) { toast("Erro: " + error.message); return; }
+    toast(novo === "pago" ? "Marcado como pago ✅" : "Marcado como por receber");
+    await carregarTudo();
+  });
 }
 
 /* ============================================================
@@ -447,6 +468,9 @@ function abrirModalServico(id) {
   $("#servico-apagar").classList.toggle("hidden", novo);
   $("#form-servico").reset();
   $("#servico-id").value = id || "";
+  limparErroForm("servico-erro");
+  // id do registo novo, fixo enquanto o formulário estiver aberto (ver novoId)
+  state.novoServicoId = novo ? novoId() : null;
   state.editandoServico = novo ? null : (state.servicos.find((x) => x.id === id) || null);
 
   state.horaInicioTocada = false;
@@ -468,7 +492,7 @@ function abrirModalServico(id) {
     setData("servico-data", s.data);
     setHora("servico-inicio", s.hora_inicio ? s.hora_inicio.slice(0, 5) : "");
     setHora("servico-fim", s.hora_fim ? s.hora_fim.slice(0, 5) : "");
-    $("#servico-gorjeta").value = comVirgula(Number(s.gorjeta) || 0);
+    $("#servico-gorjeta").value = Number(s.gorjeta) ? comVirgula(s.gorjeta) : "";
     $("#servico-notas").value = s.notas || "";
     $("#servico-pago").checked = s.estado === "pago";
   }
@@ -483,6 +507,7 @@ function modoServico(modo) {
   $$("#servico-modo .seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.modo === modo));
   $$("#form-servico .so-feito").forEach((el) => el.classList.toggle("hidden", modo === "agendado"));
   sincronizarComAgendado();
+  atualizarPreviewServico();
 }
 
 // há um serviço agendado para esta quinta e este dia? (então é esse que estou a fazer)
@@ -525,24 +550,52 @@ function valorHoraAtual() {
 
 function atualizarPreviewServico() {
   const valorHora = valorHoraAtual();
-  const horas = calcHoras($("#servico-inicio").value, $("#servico-fim").value);
+  const inicio = $("#servico-inicio").value, fim = $("#servico-fim").value;
+  const horas = calcHoras(inicio, fim);
   const total = horas * valorHora;
   $("#preview-horas").textContent = horas ? fmtHoras(horas) : "—";
   $("#preview-total").textContent = horas ? fmtEUR(total) : "—";
+
+  // o formulário mudou: o erro da última tentativa de guardar deixa de se aplicar
+  limparErroForm("servico-erro");
+
+  // aviso (não bloqueia) por baixo das contas quando o turno é invulgarmente longo;
+  // horas iguais são um erro, mostrado ao guardar
+  const msg = $("#servico-horario-msg");
+  const { aviso } = (state.modoServico === "feito" && inicio && fim) ? validarHorario(inicio, fim) : {};
+  msg.textContent = aviso || "";
+  msg.classList.toggle("hidden", !aviso);
 }
 
 async function guardarServico(e) {
   e.preventDefault();
-  const id = $("#servico-id").value;
-  const qid = $("#servico-quinta").value;
-  const q = state.quintas.find((x) => x.id === qid);
-  if (!q) { toast("Escolhe uma quinta."); return; }
-  const agendado = state.modoServico === "agendado";
-  if (!$("#servico-data").value) { toast("Escolhe a data."); return; }
-  if (!agendado && (!$("#servico-inicio").value || !$("#servico-fim").value)) {
-    toast("Escolhe a hora de entrada e de saída."); return;
-  }
+  const botao = e.submitter || $("#form-servico button[type=submit]");
+  await executarMutacao(botao, async () => {
+    limparErroForm("servico-erro");
+    const id = $("#servico-id").value;
+    const qid = $("#servico-quinta").value;
+    const q = state.quintas.find((x) => x.id === qid);
+    if (!q) return erroForm("servico-erro", "Escolhe uma quinta.", $("#servico-quinta"));
+    const agendado = state.modoServico === "agendado";
+    if (!$("#servico-data").value)
+      return erroForm("servico-erro", "Escolhe a data.", $(".date-trigger[data-target=servico-data]"));
 
+    let gorjeta = 0;
+    if (!agendado) {
+      const { erro } = validarHorario($("#servico-inicio").value, $("#servico-fim").value);
+      if (erro) return erroForm("servico-erro", erro, $(".time-trigger[data-target=servico-fim]"));
+      const lida = lerEuros($("#servico-gorjeta").value, "Gorjeta", false);
+      if (lida.erro) return erroForm("servico-erro", lida.erro, $("#servico-gorjeta"));
+      gorjeta = lida.valor;
+    }
+    await gravarServico(id, q, agendado, gorjeta);
+  });
+}
+
+// grava o serviço já validado: atualiza o que está a ser editado, conclui o agendado
+// correspondente ou cria um novo (upsert com o id fixo do formulário: repetir não duplica)
+async function gravarServico(id, q, agendado, gorjeta) {
+  const qid = q.id;
   const dados = agendado ? {
     quinta_id: qid,
     quinta_nome: q.nome,
@@ -560,7 +613,7 @@ async function guardarServico(e) {
     data: $("#servico-data").value,
     hora_inicio: $("#servico-inicio").value,
     hora_fim: $("#servico-fim").value,
-    gorjeta: parseNum($("#servico-gorjeta").value),
+    gorjeta,
     estado: $("#servico-pago").checked ? "pago" : "pendente",
     notas: $("#servico-notas").value.trim() || null,
   };
@@ -571,7 +624,7 @@ async function guardarServico(e) {
   let error;
   if (id)      ({ error } = await sb.from("servicos").update(dados).eq("id", id));
   else if (ag) ({ error } = await sb.from("servicos").update(dados).eq("id", ag.id));
-  else         ({ error } = await sb.from("servicos").insert(dados));
+  else         ({ error } = await sb.from("servicos").upsert({ id: state.novoServicoId, ...dados }));
 
   if (error) { toast("Erro: " + error.message); return; }
   fecharModais();
@@ -579,15 +632,17 @@ async function guardarServico(e) {
   await carregarTudo();
 }
 
-async function apagarServico() {
+async function apagarServico(e) {
   const id = $("#servico-id").value;
   if (!id) return;
   if (!confirm("Apagar este serviço?")) return;
-  const { error } = await sb.from("servicos").delete().eq("id", id);
-  if (error) { toast("Erro: " + error.message); return; }
-  fecharModais();
-  toast("Serviço apagado.");
-  await carregarTudo();
+  await executarMutacao(e.currentTarget, async () => {
+    const { error } = await sb.from("servicos").delete().eq("id", id);
+    if (error) { toast("Erro: " + error.message); return; }
+    fecharModais();
+    toast("Serviço apagado.");
+    await carregarTudo();
+  });
 }
 
 /* ============================================================
@@ -843,6 +898,9 @@ function abrirModalQuinta(id) {
   $("#quinta-apagar").classList.toggle("hidden", novo);
   $("#form-quinta").reset();
   $("#quinta-id").value = id || "";
+  limparErroForm("quinta-erro");
+  // id do registo novo, fixo enquanto o formulário estiver aberto (ver novoId)
+  state.novaQuintaId = novo ? novoId() : null;
   if (novo) {
     setHora("quinta-hora", "");
     $("#quinta-lat").value = ""; $("#quinta-lon").value = "";
@@ -862,36 +920,47 @@ function abrirModalQuinta(id) {
 
 async function guardarQuinta(e) {
   e.preventDefault();
-  const id = $("#quinta-id").value;
-  const dados = {
-    nome: $("#quinta-nome").value.trim(),
-    valor_hora: parseNum($("#quinta-valor").value),
-    hora_inicio_padrao: $("#quinta-hora").value || null,
-    latitude: $("#quinta-lat").value ? Number($("#quinta-lat").value) : null,
-    longitude: $("#quinta-lon").value ? Number($("#quinta-lon").value) : null,
-    notas: $("#quinta-notas").value.trim() || null,
-  };
-  if (!dados.nome) { toast("Escreve o nome da quinta."); return; }
+  const botao = e.submitter || $("#form-quinta button[type=submit]");
+  await executarMutacao(botao, async () => {
+    limparErroForm("quinta-erro");
+    const id = $("#quinta-id").value;
+    const nome = $("#quinta-nome").value.trim();
+    if (!nome) return erroForm("quinta-erro", "Escreve o nome da quinta.", $("#quinta-nome"));
+    const valor = lerEuros($("#quinta-valor").value, "Valor à hora", true);
+    if (valor.erro) return erroForm("quinta-erro", valor.erro, $("#quinta-valor"));
 
-  let error;
-  if (id) ({ error } = await sb.from("quintas").update(dados).eq("id", id));
-  else    ({ error } = await sb.from("quintas").insert(dados));
+    const dados = {
+      nome,
+      valor_hora: valor.valor,
+      hora_inicio_padrao: $("#quinta-hora").value || null,
+      latitude: $("#quinta-lat").value ? Number($("#quinta-lat").value) : null,
+      longitude: $("#quinta-lon").value ? Number($("#quinta-lon").value) : null,
+      notas: $("#quinta-notas").value.trim() || null,
+    };
 
-  if (error) { toast("Erro: " + error.message); return; }
-  fecharModais();
-  toast(id ? "Quinta atualizada." : "Quinta guardada.");
-  await carregarTudo();
+    // quinta nova: upsert com o id fixo do formulário (repetir o pedido não duplica)
+    let error;
+    if (id) ({ error } = await sb.from("quintas").update(dados).eq("id", id));
+    else    ({ error } = await sb.from("quintas").upsert({ id: state.novaQuintaId, ...dados }));
+
+    if (error) { toast("Erro: " + error.message); return; }
+    fecharModais();
+    toast(id ? "Quinta atualizada." : "Quinta guardada.");
+    await carregarTudo();
+  });
 }
 
-async function apagarQuinta() {
+async function apagarQuinta(e) {
   const id = $("#quinta-id").value;
   if (!id) return;
   if (!confirm("Apagar esta quinta? Os serviços antigos mantêm-se com o nome guardado.")) return;
-  const { error } = await sb.from("quintas").delete().eq("id", id);
-  if (error) { toast("Erro: " + error.message); return; }
-  fecharModais();
-  toast("Quinta apagada.");
-  await carregarTudo();
+  await executarMutacao(e.currentTarget, async () => {
+    const { error } = await sb.from("quintas").delete().eq("id", id);
+    if (error) { toast("Erro: " + error.message); return; }
+    fecharModais();
+    toast("Quinta apagada.");
+    await carregarTudo();
+  });
 }
 
 /* ============================================================
@@ -1028,25 +1097,28 @@ function modoPerfil(editar) {
 
 async function guardarPerfil(e) {
   e.preventDefault();
-  if (!state.user) { toast("Sessão não encontrada."); return; }
-  const username = $("#perfil-username").value.trim();
-  if (username && !/^[a-zA-Z0-9_.]{3,}$/.test(username)) {
-    toast("Username inválido: mínimo 3, só letras, números, _ ou ."); return;
-  }
-  const dados = {
-    id: state.user.id,
-    nome: $("#perfil-nome").value.trim() || null,
-    apelido: $("#perfil-apelido").value.trim() || null,
-    numero: $("#perfil-numero").value.trim() || null,
-    username: username || null,
-    email: state.user.email,
-  };
-  const { error } = await sb.from("profiles").upsert(dados);
-  if (error) { toast(traduzErro(error.message)); return; }
-  state.profile = dados;
-  modoPerfil(false);
-  renderPerfil();
-  toast("Dados guardados! ✅");
+  const botao = e.submitter || $("#form-perfil button[type=submit]");
+  await executarMutacao(botao, async () => {
+    if (!state.user) { toast("Sessão não encontrada."); return; }
+    const username = $("#perfil-username").value.trim();
+    if (username && !/^[a-zA-Z0-9_.]{3,}$/.test(username)) {
+      toast("Username inválido: mínimo 3, só letras, números, _ ou ."); return;
+    }
+    const dados = {
+      id: state.user.id,
+      nome: $("#perfil-nome").value.trim() || null,
+      apelido: $("#perfil-apelido").value.trim() || null,
+      numero: $("#perfil-numero").value.trim() || null,
+      username: username || null,
+      email: state.user.email,
+    };
+    const { error } = await sb.from("profiles").upsert(dados);
+    if (error) { toast(traduzErro(error.message)); return; }
+    state.profile = dados;
+    modoPerfil(false);
+    renderPerfil();
+    toast("Dados guardados! ✅");
+  });
 }
 
 async function trocarPassword(e) {
@@ -1116,10 +1188,78 @@ function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
-// aceita vírgula OU ponto como separador decimal (ex.: "8,50" -> 8.5)
-function parseNum(v) { return Number(String(v).replace(",", ".").trim()) || 0; }
-// mostra um número com vírgula para o utilizador (ex.: 8.5 -> "8,5")
-function comVirgula(n) { return n ? String(n).replace(".", ",") : ""; }
+// lê um valor em euros escrito pelo utilizador: vírgula OU ponto decimal, até 2 casas,
+// "€" opcional (ex.: "8,50" -> 8.5, "8.5 €" -> 8.5, "-3" -> -3).
+// Devolve null se não o conseguir ler (vazio, "abc", "1.000,50", "8,505").
+function parseNum(v) {
+  const s = String(v ?? "").replace(/€/g, "").replace(/\s+/g, "");
+  if (!/^-?\d+([.,]\d{1,2})?$/.test(s)) return null;
+  return Number(s.replace(",", "."));
+}
+// valida um campo em euros: devolve { valor } ou { erro } com uma mensagem para o formulário
+// (campo opcional vazio vale 0)
+function lerEuros(texto, rotulo, obrigatorio) {
+  if (String(texto ?? "").trim() === "")
+    return obrigatorio ? { erro: `${rotulo}: escreve um valor (ex.: 8,50).` } : { valor: 0 };
+  const n = parseNum(texto);
+  if (n === null) return { erro: `${rotulo}: valor inválido. Escreve só o número, por exemplo 8,50.` };
+  if (n < 0) return { erro: `${rotulo}: o valor não pode ser negativo.` };
+  return { valor: n };
+}
+// mostra um número com vírgula para o utilizador (ex.: 8.5 -> "8,5"; 0 -> "0")
+function comVirgula(n) { return n == null || n === "" ? "" : String(n).replace(".", ","); }
+
+// id gerado no cliente para registos novos. O formulário usa sempre o mesmo id enquanto
+// está aberto, por isso repetir o pedido (ex.: a resposta perdeu-se) atualiza o mesmo
+// registo em vez de criar outro. crypto.randomUUID só existe em https/localhost; noutros
+// casos (ex.: testar no telemóvel por http na rede local) gera um UUID v4 equivalente.
+function novoId() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+// erro de validação mostrado dentro do formulário (e foco no campo em causa)
+function erroForm(elId, msg, campo) {
+  const el = $("#" + elId);
+  el.textContent = msg;
+  el.classList.remove("hidden");
+  if (campo) { campo.setAttribute("aria-invalid", "true"); campo.focus(); }
+}
+function limparErroForm(elId) {
+  const el = $("#" + elId);
+  el.textContent = "";
+  el.classList.add("hidden");
+  const form = el.closest("form");
+  if (form) form.querySelectorAll("[aria-invalid]").forEach((c) => c.removeAttribute("aria-invalid"));
+}
+
+// escritas em curso, por formulário (ou pelo próprio botão, fora de formulários)
+const mutacoesEmCurso = new WeakSet();
+
+// corre uma escrita na base de dados sem deixar repetir: enquanto o pedido não termina,
+// os botões do formulário ficam desativados e novos cliques/submits são ignorados
+async function executarMutacao(botao, fn) {
+  const chave = botao.form || botao;
+  if (mutacoesEmCurso.has(chave)) return;
+  mutacoesEmCurso.add(chave);
+  const botoes = botao.form ? Array.from(botao.form.querySelectorAll("button")) : [botao];
+  const desativados = botoes.filter((b) => !b.disabled);   // só reativa os que estavam ativos
+  desativados.forEach((b) => { b.disabled = true; });
+  botao.setAttribute("aria-busy", "true");
+  try {
+    await fn();
+  } catch (err) {
+    toast("Erro: " + (err && err.message ? err.message : err));
+  } finally {
+    desativados.forEach((b) => { b.disabled = false; });
+    botao.removeAttribute("aria-busy");
+    mutacoesEmCurso.delete(chave);
+  }
+}
 
 /* ============================================================
    ARRANQUE

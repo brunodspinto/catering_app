@@ -70,6 +70,9 @@ form input:focus,form select:focus{border-color:var(--accent)}
   cursor:pointer;transition:.15s;color:#fff}
 .btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#06281f}
 .btn-primary:active{transform:scale(.98)}
+.btn:disabled,.badge:disabled{opacity:.6;cursor:progress}
+.aviso{color:var(--warn);font-size:.85rem;margin:12px 0 0}
+form input[aria-invalid="true"],form select[aria-invalid="true"],.time-trigger[aria-invalid="true"],.date-trigger[aria-invalid="true"]{border-color:var(--danger)}
 .btn-block{width:100%;margin-top:20px}
 .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--text)}
 .btn-ghost.danger{color:var(--danger);border-color:#4a2730}
