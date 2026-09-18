@@ -53,7 +53,7 @@
           <input type="password" id="auth-password" required placeholder=" " minlength="6" autocomplete="current-password" />
           <span>Senha</span>
         </label>
-        <p id="auth-error" class="error hidden"></p>
+        <p id="auth-error" class="error hidden" role="alert"></p>
         <button type="submit" id="auth-submit" class="btn btn-primary btn-block">Entrar</button>
       </form>
 
@@ -87,9 +87,9 @@
       <!-- ---- RESUMO ---- -->
       <section id="view-resumo" class="view">
         <div class="month-nav">
-          <button class="icon-btn" id="month-prev">‹</button>
-          <span id="month-label">—</span>
-          <button class="icon-btn" id="month-next">›</button>
+          <button type="button" class="icon-btn" id="month-prev" aria-label="Mês anterior">‹</button>
+          <span id="month-label" aria-live="polite">—</span>
+          <button type="button" class="icon-btn" id="month-next" aria-label="Mês seguinte">›</button>
         </div>
 
         <div class="cards-grid">
@@ -121,10 +121,10 @@
       <!-- ---- SERVIÇOS ---- -->
       <section id="view-servicos" class="view hidden">
         <div class="filter-chips" id="servicos-filtros">
-          <button class="chip active" data-f="todos">Todos</button>
-          <button class="chip" data-f="agendado">Agendados</button>
-          <button class="chip" data-f="pendente">Por receber</button>
-          <button class="chip" data-f="pago">Pagos</button>
+          <button type="button" class="chip active" aria-pressed="true" data-f="todos">Todos</button>
+          <button type="button" class="chip" aria-pressed="false" data-f="agendado">Agendados</button>
+          <button type="button" class="chip" aria-pressed="false" data-f="pendente">Por receber</button>
+          <button type="button" class="chip" aria-pressed="false" data-f="pago">Pagos</button>
         </div>
         <div id="servicos-resumo" class="card hidden">
           <span class="stat-label">Quanto te devem</span>
@@ -137,11 +137,11 @@
       <!-- ---- CONTA ---- -->
       <section id="view-conta" class="view hidden">
         <div class="filter-chips" id="conta-abas">
-          <button class="chip active" data-aba="dados">Dados</button>
-          <button class="chip" data-aba="quintas">Quintas</button>
-          <button class="chip" data-aba="estatisticas">Estatísticas</button>
-          <button class="chip" data-aba="gorjetas">Gorjetas</button>
-          <button class="chip" data-aba="seguranca">Segurança</button>
+          <button type="button" class="chip active" aria-pressed="true" data-aba="dados">Dados</button>
+          <button type="button" class="chip" aria-pressed="false" data-aba="quintas">Quintas</button>
+          <button type="button" class="chip" aria-pressed="false" data-aba="estatisticas">Estatísticas</button>
+          <button type="button" class="chip" aria-pressed="false" data-aba="gorjetas">Gorjetas</button>
+          <button type="button" class="chip" aria-pressed="false" data-aba="seguranca">Segurança</button>
         </div>
 
         <!-- ---- aba: QUINTAS ---- -->
@@ -256,36 +256,36 @@
     </main>
 
     <!-- Botão flutuante adicionar -->
-    <button id="fab" class="fab" title="Adicionar">+</button>
+    <button type="button" id="fab" class="fab" title="Adicionar serviço" aria-label="Adicionar serviço">+</button>
 
     <!-- Navegação inferior -->
-    <nav class="bottom-nav">
-      <button class="nav-btn active" data-view="resumo"><span>📊</span>Resumo</button>
-      <button class="nav-btn" data-view="servicos"><span>🧾</span>Serviços</button>
-      <button class="nav-btn" data-view="conta"><span>👤</span>Conta</button>
+    <nav class="bottom-nav" aria-label="Navegação principal">
+      <button type="button" class="nav-btn active" aria-current="page" data-view="resumo"><span aria-hidden="true">📊</span>Resumo</button>
+      <button type="button" class="nav-btn" data-view="servicos"><span aria-hidden="true">🧾</span>Serviços</button>
+      <button type="button" class="nav-btn" data-view="conta"><span aria-hidden="true">👤</span>Conta</button>
     </nav>
   </div>
 
   <!-- ============ MODAIS ============ -->
 
   <!-- Modal Serviço -->
-  <div id="modal-servico" class="modal hidden">
+  <div id="modal-servico" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-servico-titulo">
     <div class="modal-box">
       <div class="modal-head">
         <h2 id="modal-servico-titulo">Novo serviço</h2>
-        <button class="icon-btn" data-close>✕</button>
+        <button type="button" class="icon-btn" data-close aria-label="Fechar">✕</button>
       </div>
       <form id="form-servico">
         <input type="hidden" id="servico-id" />
         <div class="seg" id="servico-modo">
-          <button type="button" class="seg-btn active" data-modo="feito">Feito</button>
-          <button type="button" class="seg-btn" data-modo="agendado">Agendar</button>
+          <button type="button" class="seg-btn active" aria-pressed="true" data-modo="feito">Feito</button>
+          <button type="button" class="seg-btn" aria-pressed="false" data-modo="agendado">Agendar</button>
         </div>
         <label>Quinta
           <select id="servico-quinta" required></select>
         </label>
         <p class="gps-linha hidden" id="detetar-quinta-linha">
-          <button type="button" class="linkish" id="detetar-quinta">📍 Detetar pela localização</button>
+          <button type="button" class="linkish" id="detetar-quinta"><span aria-hidden="true">📍</span> Detetar pela localização</button>
         </p>
         <label>Data
           <button type="button" class="date-trigger" data-target="servico-data" data-titulo="Data do serviço">Escolher data</button>
@@ -333,11 +333,11 @@
   </div>
 
   <!-- Modal Quinta -->
-  <div id="modal-quinta" class="modal hidden">
+  <div id="modal-quinta" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-quinta-titulo">
     <div class="modal-box">
       <div class="modal-head">
         <h2 id="modal-quinta-titulo">Nova quinta</h2>
-        <button class="icon-btn" data-close>✕</button>
+        <button type="button" class="icon-btn" data-close aria-label="Fechar">✕</button>
       </div>
       <form id="form-quinta">
         <input type="hidden" id="quinta-id" />
@@ -351,12 +351,15 @@
           <button type="button" class="time-trigger" data-target="quinta-hora" data-titulo="Hora habitual de início">--:--</button>
           <input type="hidden" id="quinta-hora" />
         </label>
-        <label>Localização <span class="muted">opcional</span></label>
-        <button type="button" class="btn btn-ghost btn-block" id="quinta-gps" style="margin-top:6px">📍 Usar a minha localização atual</button>
-        <p class="gps-info">
-          <span id="quinta-gps-info">Sem localização guardada</span>
-          <button type="button" id="quinta-gps-remover" class="linkish hidden">remover</button>
-        </p>
+        <!-- título de um grupo de controlos (não é a label de um campo) -->
+        <div role="group" aria-labelledby="quinta-gps-titulo">
+          <p class="campo-titulo" id="quinta-gps-titulo">Localização <span class="muted">opcional</span></p>
+          <button type="button" class="btn btn-ghost btn-block" id="quinta-gps" style="margin-top:6px"><span aria-hidden="true">📍</span> Usar a minha localização atual</button>
+          <p class="gps-info">
+            <span id="quinta-gps-info">Sem localização guardada</span>
+            <button type="button" id="quinta-gps-remover" class="linkish hidden" aria-label="Remover localização">remover</button>
+          </p>
+        </div>
         <input type="hidden" id="quinta-lat" />
         <input type="hidden" id="quinta-lon" />
 
@@ -373,10 +376,10 @@
   </div>
 
   <!-- Modal recuperar palavra-passe (vindo do email) -->
-  <div id="modal-recovery" class="modal hidden">
+  <div id="modal-recovery" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-recovery-titulo">
     <div class="modal-box">
       <div class="modal-head">
-        <h2>Definir nova palavra-passe</h2>
+        <h2 id="modal-recovery-titulo">Definir nova palavra-passe</h2>
       </div>
       <form id="form-recovery">
         <label>Nova palavra-passe
@@ -393,14 +396,15 @@
   </div>
 
   <!-- Seletor de data (calendário) -->
-  <div id="date-picker" class="dp hidden">
+  <div id="date-picker" class="dp hidden" role="dialog" aria-modal="true" aria-labelledby="dp-titulo">
     <div class="dp-box">
+      <h2 id="dp-titulo" class="sr-only">Escolher data</h2>
       <div class="dp-head">
-        <button type="button" class="icon-btn" id="dp-prev">‹</button>
-        <strong id="dp-month">—</strong>
-        <button type="button" class="icon-btn" id="dp-next">›</button>
+        <button type="button" class="icon-btn" id="dp-prev" aria-label="Mês anterior">‹</button>
+        <strong id="dp-month" aria-live="polite">—</strong>
+        <button type="button" class="icon-btn" id="dp-next" aria-label="Mês seguinte">›</button>
       </div>
-      <div class="dp-week" id="dp-week"></div>
+      <div class="dp-week" id="dp-week" aria-hidden="true"></div>
       <div class="dp-grid" id="dp-grid"></div>
       <div class="dp-actions">
         <button type="button" class="btn btn-ghost" id="dp-today">Hoje</button>
@@ -410,20 +414,20 @@
   </div>
 
   <!-- Seletor de horas (estilo iPhone) -->
-  <div id="time-picker" class="tp hidden">
+  <div id="time-picker" class="tp hidden" role="dialog" aria-modal="true" aria-labelledby="tp-title">
     <div class="tp-box">
       <div class="tp-head">
         <strong id="tp-title">Hora</strong>
-        <button type="button" class="icon-btn" id="tp-close">✕</button>
+        <button type="button" class="icon-btn" id="tp-close" aria-label="Fechar">✕</button>
       </div>
       <div class="tp-cols">
-        <span class="tp-cap">horas</span>
-        <span class="tp-cap">min</span>
+        <span class="tp-cap" aria-hidden="true">horas</span>
+        <span class="tp-cap" aria-hidden="true">min</span>
       </div>
       <div class="tp-cols">
-        <div class="tp-col" id="tp-hours"></div>
-        <div class="tp-sep">:</div>
-        <div class="tp-col" id="tp-mins"></div>
+        <div class="tp-col" id="tp-hours" role="group" aria-label="Horas"></div>
+        <div class="tp-sep" aria-hidden="true">:</div>
+        <div class="tp-col" id="tp-mins" role="group" aria-label="Minutos"></div>
       </div>
       <div class="tp-actions">
         <button type="button" class="btn btn-ghost" id="tp-agora">Agora</button>
@@ -433,7 +437,7 @@
   </div>
 
   <!-- Aviso/Toast -->
-  <div id="toast" class="toast hidden"></div>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <!-- Bibliotecas e código -->
   <!-- versão exata + SRI: o browser recusa o ficheiro se o conteúdo não for exatamente este.

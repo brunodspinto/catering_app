@@ -97,13 +97,17 @@ function mesmoMes(dataStr, ref) {
 }
 
 // ---------- Toast ----------
-let toastTimer;
+let toastTimer, toastTextoTimer;
+// o #toast é uma região live (role="status"): o texto só é escrito depois de a região
+// estar visível e vazia, para os leitores de ecrã anunciarem mesmo mensagens repetidas
 function toast(msg) {
   const t = $("#toast");
-  t.textContent = msg;
-  t.classList.remove("hidden");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.add("hidden"), 2600);
+  clearTimeout(toastTextoTimer);
+  t.textContent = "";
+  t.classList.remove("hidden");
+  toastTextoTimer = setTimeout(() => { t.textContent = msg; }, 50);
+  toastTimer = setTimeout(() => t.classList.add("hidden"), 2650);
 }
 
 /* ============================================================
@@ -255,6 +259,7 @@ function renderTudo() {
   renderServicos();
   renderQuintas();
   renderConta();
+  restaurarFocoPendente();
 }
 
 /* ============================================================
@@ -310,15 +315,23 @@ function renderResumo() {
 /* ============================================================
    RENDER — SERVIÇOS
    ============================================================ */
+// parte clicável de um item de lista: um <button> (focável e acionável com Enter/Espaço)
+// que ocupa a linha toda através de um ::after; outros controlos do item ficam por cima.
+// (o item em si não pode ser um <button>: tem outro botão lá dentro, o selo pago/por receber)
+function itemBotaoHTML(dataAttr, id, tituloHTML, subHTML) {
+  return `
+      <button type="button" class="left item-abrir" data-${dataAttr}="${id}">
+        <span class="title">${tituloHTML}</span>${subHTML ? `
+        <span class="sub">${subHTML}</span>` : ""}
+      </button>`;
+}
+
 function servicoItemHTML(s) {
   // agendado: ainda não tem horas nem valor
   if (s.estado === "agendado") {
     return `
-    <div class="item" data-servico="${s.id}">
-      <div class="left">
-        <div class="title">${escapeHtml(s.quinta_nome || "—")}</div>
-        <div class="sub">${fmtDataLonga(s.data)}${s.notas ? " · " + escapeHtml(s.notas) : ""}</div>
-      </div>
+    <div class="item item-clicavel">${itemBotaoHTML("servico", s.id, escapeHtml(s.quinta_nome || "—"),
+        fmtDataLonga(s.data) + (s.notas ? " · " + escapeHtml(s.notas) : ""))}
       <div class="right"><span class="badge agendado">Agendado</span></div>
     </div>`;
   }
@@ -327,15 +340,14 @@ function servicoItemHTML(s) {
   const h = fmtHoras(calcHoras(s.hora_inicio, s.hora_fim));
   const horario = (s.hora_inicio && s.hora_fim)
     ? `${s.hora_inicio.slice(0, 5)}–${s.hora_fim.slice(0, 5)} · ${h}` : "sem horas";
+  const pago = s.estado === "pago";
   return `
-    <div class="item" data-servico="${s.id}">
-      <div class="left">
-        <div class="title">${escapeHtml(s.quinta_nome || "—")}</div>
-        <div class="sub">${fmtData(s.data)} · ${horario}${Number(s.gorjeta) ? " · gorjeta " + fmtEUR(s.gorjeta) : ""}</div>
-      </div>
+    <div class="item item-clicavel">${itemBotaoHTML("servico", s.id, escapeHtml(s.quinta_nome || "—"),
+        `${fmtData(s.data)} · ${horario}${Number(s.gorjeta) ? " · gorjeta " + fmtEUR(s.gorjeta) : ""}`)}
       <div class="right">
         <div class="amount money">${fmtEUR(t)}</div>
-        <button class="badge ${s.estado}" data-pago="${s.id}" title="Tocar para alternar pago/por receber">${s.estado === "pago" ? "Pago" : "Por receber"}</button>
+        <button type="button" class="badge ${s.estado}" data-pago="${s.id}" title="Tocar para alternar pago/por receber"
+          aria-label="${pago ? "Pago" : "Por receber"}: marcar como ${pago ? "por receber" : "pago"}">${pago ? "Pago" : "Por receber"}</button>
       </div>
     </div>`;
 }
@@ -422,6 +434,7 @@ async function togglePagoServico(id, botao) {
     const { error } = await sb.from("servicos").update({ estado: novo }).eq("id", id);
     if (error) { toast("Erro: " + error.message); return; }
     toast(novo === "pago" ? "Marcado como pago ✅" : "Marcado como por receber");
+    focoPendente = `[data-pago="${id}"]`;   // o selo é redesenhado: devolver-lhe o foco
     await carregarTudo();
   });
 }
@@ -435,13 +448,9 @@ function renderQuintas() {
   wrap.innerHTML = state.quintas.map((q) => {
     const detalhes = [];
     if (q.hora_inicio_padrao) detalhes.push("Início " + q.hora_inicio_padrao.slice(0, 5));
-    if (q.latitude != null && q.longitude != null) detalhes.push("📍 localização");
+    if (q.latitude != null && q.longitude != null) detalhes.push(`<span aria-hidden="true">📍</span> localização`);
     return `
-    <div class="item" data-quinta="${q.id}">
-      <div class="left">
-        <div class="title">${escapeHtml(q.nome)}</div>
-        ${detalhes.length ? `<div class="sub">${detalhes.join(" · ")}</div>` : ""}
-      </div>
+    <div class="item item-clicavel">${itemBotaoHTML("quinta", q.id, escapeHtml(q.nome), detalhes.join(" · "))}
       <div class="right"><span class="amount">${fmtEUR(q.valor_hora)}</span><div class="muted">por hora</div></div>
     </div>`;
   }).join("");
@@ -507,7 +516,7 @@ function abrirModalServico(id) {
 // "feito" = serviço já realizado (com horas) | "agendado" = só marcado (quinta + dia)
 function modoServico(modo) {
   state.modoServico = modo;
-  $$("#servico-modo .seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.modo === modo));
+  $$("#servico-modo .seg-btn").forEach((b) => marcarAtivo(b, b.dataset.modo === modo));
   $$("#form-servico .so-feito").forEach((el) => el.classList.toggle("hidden", modo === "agendado"));
   sincronizarComAgendado();
   atualizarPreviewServico();
@@ -662,24 +671,45 @@ function setHora(inputId, val) {
 }
 
 // constrói uma coluna a partir de uma lista de valores (ex.: [0,15,30,45])
-function tpConstruirColuna(col, valores, selVal, onPick) {
+// cada valor é um <button>: Enter/Espaço escolhe; ↑↓ (e Home/End) mudam o foco na coluna.
+// Só o valor escolhido está na ordem do Tab ("roving tabindex").
+function tpConstruirColuna(col, valores, selVal, onPick, unidade) {
   col.innerHTML = "";
   for (const v of valores) {
-    const it = document.createElement("div");
-    it.className = "tp-item" + (v === selVal ? " sel" : "");
+    const it = document.createElement("button");
+    it.type = "button";
+    it.className = "tp-item";
     it.textContent = pad2(v);
     it.dataset.val = v;
+    it.setAttribute("aria-label", `${v} ${unidade}`);
     it.addEventListener("click", () => onPick(v));
     col.appendChild(it);
   }
+  tpMarcar(col, selVal);
 }
 function tpCentrar(col, valores, val, smooth) {
   const i = Math.max(0, valores.indexOf(val));
   col.scrollTo({ top: i * 44, behavior: smooth ? "smooth" : "auto" });
 }
 function tpMarcar(col, val) {
-  col.querySelectorAll(".tp-item").forEach((el) =>
-    el.classList.toggle("sel", Number(el.dataset.val) === val));
+  col.querySelectorAll(".tp-item").forEach((el) => {
+    const sel = Number(el.dataset.val) === val;
+    el.classList.toggle("sel", sel);
+    el.setAttribute("aria-pressed", String(sel));
+    el.tabIndex = sel ? 0 : -1;
+  });
+}
+// ↑↓ Home End dentro de uma coluna do seletor de horas (só move o foco; Enter/Espaço escolhe)
+function tpTeclas(e) {
+  const itens = Array.from(e.currentTarget.querySelectorAll(".tp-item"));
+  const i = itens.indexOf(document.activeElement);
+  if (i === -1) return;
+  const destino = { ArrowUp: i - 1, ArrowDown: i + 1, Home: 0, End: itens.length - 1 }[e.key];
+  if (destino === undefined) return;
+  e.preventDefault();
+  const alvo = itens[(destino + itens.length) % itens.length];   // dá a volta (23 → 00)
+  itens.forEach((el) => { el.tabIndex = el === alvo ? 0 : -1; });
+  alvo.focus();
 }
 function tpAplicar() {
   const val = `${pad2(TP.h)}:${pad2(TP.m)}`;
@@ -709,13 +739,13 @@ function abrirTimePicker(trigger) {
   TP.horas = horas; TP.minutos = minutos;   // guardados para o botão "Agora"
 
   const colH = $("#tp-hours"), colM = $("#tp-mins");
-  tpConstruirColuna(colH, horas, TP.h, (v) => { TP.h = v; tpMarcar(colH, v); tpCentrar(colH, horas, v, true); tpAplicar(); });
-  tpConstruirColuna(colM, minutos, TP.m, (v) => { TP.m = v; tpMarcar(colM, v); tpCentrar(colM, minutos, v, true); tpAplicar(); });
+  tpConstruirColuna(colH, horas, TP.h, (v) => { TP.h = v; tpMarcar(colH, v); tpCentrar(colH, horas, v, true); tpAplicar(); }, "horas");
+  tpConstruirColuna(colM, minutos, TP.m, (v) => { TP.m = v; tpMarcar(colM, v); tpCentrar(colM, minutos, v, true); tpAplicar(); }, "minutos");
 
-  $("#time-picker").classList.remove("hidden");
+  abrirJanela($("#time-picker"), colH.querySelector(".tp-item.sel"));
   requestAnimationFrame(() => { tpCentrar(colH, horas, TP.h, false); tpCentrar(colM, minutos, TP.m, false); });
 }
-function fecharTimePicker() { $("#time-picker").classList.add("hidden"); }
+function fecharTimePicker() { fecharJanela($("#time-picker")); }
 
 // coloca uma hora nas duas colunas de uma vez (usado pelo botão "Agora")
 function tpDefinir(h, m) {
@@ -746,7 +776,16 @@ function setData(inputId, iso) {
   if (trg) trg.textContent = fmtDataBotao(iso);
 }
 
-function dpRender() {
+// data por extenso para leitores de ecrã (ex.: "sexta-feira, 18 de setembro de 2026")
+function fmtDataExtenso(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("pt-PT",
+    { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+
+// desenha o mês de DP.view. Cada dia é um <button>; só um está na ordem do Tab
+// (focoIso, o escolhido, hoje ou o dia 1). Com focar = true, põe o foco nesse dia.
+function dpRender(focoIso, focar) {
   const y = DP.view.getFullYear(), m = DP.view.getMonth();
   const titulo = DP.view.toLocaleDateString("pt-PT", { month: "long", year: "numeric" });
   $("#dp-month").textContent = titulo.charAt(0).toUpperCase() + titulo.slice(1);
@@ -754,18 +793,48 @@ function dpRender() {
   const offset = (new Date(y, m, 1).getDay() + 6) % 7;   // semana começa à segunda
   const dias = new Date(y, m + 1, 0).getDate();
   const hoje = hojeISO();
+  const doMes = (iso) => iso && iso.startsWith(`${y}-${pad2(m + 1)}-`);
+  const alvo = [focoIso, DP.selected, hoje].find(doMes) || `${y}-${pad2(m + 1)}-01`;
   let html = "";
-  for (let i = 0; i < offset; i++) html += `<div class="dp-cell empty"></div>`;
+  for (let i = 0; i < offset; i++) html += `<div class="dp-cell empty" aria-hidden="true"></div>`;
   for (let d = 1; d <= dias; d++) {
     const iso = `${y}-${pad2(m + 1)}-${pad2(d)}`;
     const cls = ["dp-cell"];
     if (iso === hoje) cls.push("today");
     if (iso === DP.selected) cls.push("sel");
-    html += `<div class="${cls.join(" ")}" data-iso="${iso}">${d}</div>`;
+    html += `<button type="button" class="${cls.join(" ")}" data-iso="${iso}" tabindex="${iso === alvo ? 0 : -1}"
+      aria-label="${fmtDataExtenso(iso)}"${iso === hoje ? ` aria-current="date"` : ""}
+      aria-pressed="${iso === DP.selected}">${d}</button>`;
   }
   $("#dp-grid").innerHTML = html;
   $$("#dp-grid .dp-cell[data-iso]").forEach((c) =>
     c.addEventListener("click", () => dpEscolher(c.dataset.iso)));
+  if (focar) $(`#dp-grid [data-iso="${alvo}"]`).focus();
+}
+
+// setas no calendário: ←→ dia anterior/seguinte, ↑↓ semana anterior/seguinte,
+// Home/End início/fim da semana, PageUp/PageDown mês anterior/seguinte (muda de mês se preciso)
+function dpTeclas(e) {
+  const atual = document.activeElement && document.activeElement.dataset.iso;
+  if (!atual) return;
+  const [y, m, d] = atual.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  const diaSemana = (dt.getDay() + 6) % 7;   // 0 = segunda
+  switch (e.key) {
+    case "ArrowLeft":  dt.setDate(d - 1); break;
+    case "ArrowRight": dt.setDate(d + 1); break;
+    case "ArrowUp":    dt.setDate(d - 7); break;
+    case "ArrowDown":  dt.setDate(d + 7); break;
+    case "Home":       dt.setDate(d - diaSemana); break;
+    case "End":        dt.setDate(d + (6 - diaSemana)); break;
+    case "PageUp":     dt.setMonth(m - 2, Math.min(d, new Date(y, m - 1, 0).getDate())); break;
+    case "PageDown":   dt.setMonth(m, Math.min(d, new Date(y, m + 1, 0).getDate())); break;
+    default: return;
+  }
+  e.preventDefault();
+  const iso = `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`;
+  DP.view = new Date(dt.getFullYear(), dt.getMonth(), 1);
+  dpRender(iso, true);
 }
 
 function dpEscolher(iso) {
@@ -778,6 +847,7 @@ function dpEscolher(iso) {
 function abrirDatePicker(trigger) {
   DP.trigger = trigger;
   DP.input = $("#" + trigger.dataset.target);
+  $("#dp-titulo").textContent = trigger.dataset.titulo || "Escolher data";
   const cur = DP.input.value;
   if (cur && cur.includes("-")) {
     DP.selected = cur;
@@ -788,9 +858,9 @@ function abrirDatePicker(trigger) {
     DP.view = new Date();
   }
   dpRender();
-  $("#date-picker").classList.remove("hidden");
+  abrirJanela($("#date-picker"), $('#dp-grid [tabindex="0"]'));
 }
-function fecharDatePicker() { $("#date-picker").classList.add("hidden"); }
+function fecharDatePicker() { fecharJanela($("#date-picker")); }
 
 /* ============================================================
    LOCALIZAÇÃO (reconhecer em que quinta estás)
@@ -969,8 +1039,115 @@ async function apagarQuinta(e) {
 /* ============================================================
    MODAIS — utilitários
    ============================================================ */
-function abrirModal(sel) { $(sel).classList.remove("hidden"); }
-function fecharModais() { $$(".modal").forEach((m) => m.classList.add("hidden")); }
+function abrirModal(sel) { abrirJanela($(sel)); }
+function fecharModais() { $$(".modal").forEach((m) => fecharJanela(m)); }
+
+/* ============================================================
+   JANELAS (modais e seletores): foco, Tab preso lá dentro, Escape
+   ============================================================ */
+// janelas abertas, a de cima por último (o seletor de data/hora abre por cima do modal)
+const janelas = [];
+// depois de redesenhar as listas, devolver o foco ao item equivalente (ver restaurarFocoPendente)
+let focoPendente = null;
+
+const CAMPOS = "input:not([type=hidden]), select, textarea";
+const FOCAVEIS = "a[href], button, input:not([type=hidden]), select, textarea, [tabindex]";
+
+const visivel = (el) => el.getClientRects().length > 0;
+// elementos que o Tab alcança dentro de uma janela (sem os desativados nem os tabindex="-1")
+function focaveis(janela) {
+  return Array.from(janela.querySelectorAll(FOCAVEIS))
+    .filter((el) => !el.disabled && el.tabIndex >= 0 && visivel(el));
+}
+// a caixa da janela (.modal-box, .dp-box, .tp-box): recebe o foco quando não há melhor alvo
+function caixaDe(janela) {
+  const caixa = janela.firstElementChild;
+  caixa.tabIndex = -1;
+  return caixa;
+}
+// ecrã tátil: não pôr o foco num campo de texto ao abrir (abria o teclado do telemóvel)
+const ecraTatil = () => window.matchMedia("(pointer: coarse)").matches;
+
+function focoInicialDe(janela) {
+  const campo = Array.from(janela.querySelectorAll(CAMPOS)).find((el) => !el.disabled && visivel(el));
+  if (campo && !(ecraTatil() && campo.matches("input"))) return campo;
+  if (campo) return caixaDe(janela);
+  return focaveis(janela)[0] || caixaDe(janela);
+}
+
+// só a janela de cima é utilizável: o resto da página (e janelas por baixo) fica inerte
+function atualizarInert() {
+  const topo = janelas.length ? janelas[janelas.length - 1].el : null;
+  for (const el of [$("#login-view"), $("#app"), ...$$(".modal, .dp, .tp")])
+    el.inert = !!topo && el !== topo;
+}
+
+// abre uma janela: guarda quem a abriu (para lhe devolver o foco) e move o foco para dentro
+function abrirJanela(el, alvo) {
+  if (!janelas.some((j) => j.el === el)) janelas.push({ el, abridor: document.activeElement });
+  el.classList.remove("hidden");
+  atualizarInert();
+  (alvo || focoInicialDe(el)).focus();
+}
+
+function fecharJanela(el) {
+  el.classList.add("hidden");
+  const i = janelas.findIndex((j) => j.el === el);
+  if (i === -1) return;
+  const [{ abridor }] = janelas.splice(i, 1);
+  atualizarInert();
+  devolverFoco(abridor);
+}
+
+// devolve o foco a quem abriu a janela. Se esse elemento for um item de lista, guarda
+// também como o reencontrar: ao guardar/apagar, as listas são redesenhadas logo a seguir
+function devolverFoco(abridor) {
+  const chave = abridor && ["servico", "quinta", "gorjeta", "pago"].find((k) => abridor.dataset && abridor.dataset[k]);
+  focoPendente = chave ? `[data-${chave}="${abridor.dataset[chave]}"]` : null;
+  if (abridor && abridor !== document.body && abridor.isConnected && visivel(abridor)) abridor.focus();
+  else focoAlternativo();   // ex.: janela aberta por código (recuperação de palavra-passe)
+}
+
+// depois de redesenhar: se o foco se perdeu (o elemento focado foi substituído), volta ao
+// item equivalente; se o item já não existe (ex.: foi apagado), vai para um sítio estável
+function restaurarFocoPendente() {
+  if (!focoPendente) return;
+  const sel = focoPendente;
+  focoPendente = null;
+  if (janelas.length) return;
+  const ativo = document.activeElement;
+  if (ativo && ativo !== document.body && ativo.isConnected) return;
+  const el = $$(sel).find(visivel);
+  if (el) el.focus(); else focoAlternativo();
+}
+
+function focoAlternativo() {
+  const el = [$("#fab"), $(".nav-btn.active")].find((x) => x && visivel(x));
+  if (el) el.focus();
+}
+
+// Tab / Shift+Tab ficam dentro da janela de cima; Escape fecha-a
+function teclasJanelas(e) {
+  if (!janelas.length) return;
+  const topo = janelas[janelas.length - 1].el;
+  if (e.key === "Escape") {
+    e.preventDefault();
+    if (topo.classList.contains("modal")) fecharModais();   // a mesma ação que clicar fora
+    else if (topo.id === "date-picker") fecharDatePicker();
+    else if (topo.id === "time-picker") fecharTimePicker();
+    return;
+  }
+  if (e.key !== "Tab") return;
+  const lista = focaveis(topo);
+  if (!lista.length) { e.preventDefault(); caixaDe(topo).focus(); return; }
+  const primeiro = lista[0], ultimo = lista[lista.length - 1];
+  const dentro = topo.contains(document.activeElement);
+  if (e.shiftKey && (!dentro || document.activeElement === primeiro || document.activeElement === caixaDe(topo))) {
+    e.preventDefault(); ultimo.focus();
+  } else if (!e.shiftKey && (!dentro || document.activeElement === ultimo)) {
+    e.preventDefault(); primeiro.focus();
+  }
+}
 
 /* ============================================================
    NAVEGAÇÃO
@@ -981,7 +1158,10 @@ function mudarView(v) {
   state.view = v;
   $$(".view").forEach((el) => el.classList.add("hidden"));
   $(`#view-${v}`).classList.remove("hidden");
-  $$(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === v));
+  $$(".nav-btn").forEach((b) => {
+    b.classList.toggle("active", b.dataset.view === v);
+    if (b.dataset.view === v) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+  });
   $("#view-title").textContent = TITULOS[v];
   $("#fab").classList.toggle("hidden", v === "conta");   // não há "+" na Conta
 }
@@ -1051,11 +1231,7 @@ function renderGorjetas() {
   $("#gorjetas-total").textContent = fmtEUR(total);
   $("#gorjetas-vazio").classList.toggle("hidden", lista.length > 0);
   $("#gorjetas-lista").innerHTML = lista.map((s) => `
-    <div class="item" data-gorjeta="${s.id}">
-      <div class="left">
-        <div class="title">${escapeHtml(s.quinta_nome || "—")}</div>
-        <div class="sub">${fmtData(s.data)}</div>
-      </div>
+    <div class="item item-clicavel">${itemBotaoHTML("gorjeta", s.id, escapeHtml(s.quinta_nome || "—"), fmtData(s.data))}
       <div class="right"><span class="amount money">${fmtEUR(s.gorjeta)}</span></div>
     </div>`).join("");
 
@@ -1066,7 +1242,13 @@ function renderGorjetas() {
 function mudarAbaConta(aba) {
   $$(".conta-aba").forEach((el) => el.classList.add("hidden"));
   $("#conta-aba-" + aba).classList.remove("hidden");
-  $$("#conta-abas .chip").forEach((c) => c.classList.toggle("active", c.dataset.aba === aba));
+  $$("#conta-abas .chip").forEach((c) => marcarAtivo(c, c.dataset.aba === aba));
+}
+
+// botão de alternância (chips, Feito/Agendar): estado visual + aria-pressed
+function marcarAtivo(botao, ativo) {
+  botao.classList.toggle("active", ativo);
+  botao.setAttribute("aria-pressed", String(ativo));
 }
 
 // mostra os dados do perfil (leitura) e prepara o formulário de edição
@@ -1284,8 +1466,7 @@ function ligarEventos() {
 
   // filtros serviços
   $$("#servicos-filtros .chip").forEach((c) => c.addEventListener("click", () => {
-    $$("#servicos-filtros .chip").forEach((x) => x.classList.remove("active"));
-    c.classList.add("active");
+    $$("#servicos-filtros .chip").forEach((x) => marcarAtivo(x, x === c));
     state.filtroServico = c.dataset.f;
     renderServicos();
   }));
@@ -1319,6 +1500,11 @@ function ligarEventos() {
   $("#tp-ok").addEventListener("click", fecharTimePicker);
   $("#tp-close").addEventListener("click", fecharTimePicker);
   $("#time-picker").addEventListener("click", (e) => { if (e.target.id === "time-picker") fecharTimePicker(); });
+  $("#tp-hours").addEventListener("keydown", tpTeclas);
+  $("#tp-mins").addEventListener("keydown", tpTeclas);
+
+  // janelas: Tab preso na janela de cima, Escape fecha-a
+  document.addEventListener("keydown", teclasJanelas);
 
   // seletor de data (calendário)
   $$(".date-trigger").forEach((b) => b.addEventListener("click", () => abrirDatePicker(b)));
@@ -1327,6 +1513,7 @@ function ligarEventos() {
   $("#dp-today").addEventListener("click", () => dpEscolher(hojeISO()));
   $("#dp-close-btn").addEventListener("click", fecharDatePicker);
   $("#date-picker").addEventListener("click", (e) => { if (e.target.id === "date-picker") fecharDatePicker(); });
+  $("#dp-grid").addEventListener("keydown", dpTeclas);
 
   $("#form-quinta").addEventListener("submit", guardarQuinta);
   $("#nova-quinta").addEventListener("click", () => abrirModalQuinta());
