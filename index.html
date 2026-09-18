@@ -2,7 +2,7 @@
 <html lang="pt">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0f1419" />
   <link rel="manifest" href="manifest.json" />
   <!-- iPhone: ícone no ecrã principal + app em ecrã inteiro -->
@@ -436,7 +436,12 @@
   <div id="toast" class="toast hidden"></div>
 
   <!-- Bibliotecas e código -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- versão exata + SRI: o browser recusa o ficheiro se o conteúdo não for exatamente este.
+       Para atualizar: mudar a versão e recalcular o hash
+       (openssl dgst -sha384 -binary supabase.js | openssl base64 -A) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"
+          integrity="sha384-iLddHTLokph6Omwoyid4XKxHaWa6w41BnoEj0q5oOrzmYPpHIKt1wyjReA7s//pP"
+          crossorigin="anonymous"></script>
   <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
