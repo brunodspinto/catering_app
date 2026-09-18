@@ -28,20 +28,20 @@
         <div class="signup-only hidden">
           <div class="row">
             <label class="fl">
-              <input type="text" id="auth-nome" placeholder=" " />
+              <input type="text" id="auth-nome" maxlength="100" placeholder=" " />
               <span>Nome</span>
             </label>
             <label class="fl">
-              <input type="text" id="auth-apelido" placeholder=" " />
+              <input type="text" id="auth-apelido" maxlength="100" placeholder=" " />
               <span>Apelido</span>
             </label>
           </div>
           <label class="fl">
-            <input type="tel" id="auth-numero" inputmode="tel" placeholder=" " />
+            <input type="tel" id="auth-numero" maxlength="30" inputmode="tel" placeholder=" " />
             <span>Número (opcional)</span>
           </label>
           <label class="fl">
-            <input type="text" id="auth-username" autocomplete="off" placeholder=" " />
+            <input type="text" id="auth-username" maxlength="30" autocomplete="off" placeholder=" " />
             <span>Username</span>
           </label>
         </div>
@@ -168,17 +168,17 @@
         <form id="form-perfil" class="card hidden">
           <div class="row">
             <label>Nome
-              <input type="text" id="perfil-nome" placeholder="primeiro nome" />
+              <input type="text" id="perfil-nome" maxlength="100" placeholder="primeiro nome" />
             </label>
             <label>Apelido
-              <input type="text" id="perfil-apelido" placeholder="último nome" />
+              <input type="text" id="perfil-apelido" maxlength="100" placeholder="último nome" />
             </label>
           </div>
           <label>Número <span class="muted">opcional</span>
-            <input type="tel" id="perfil-numero" inputmode="tel" placeholder="9xx xxx xxx" />
+            <input type="tel" id="perfil-numero" maxlength="30" inputmode="tel" placeholder="9xx xxx xxx" />
           </label>
           <label>Username
-            <input type="text" id="perfil-username" placeholder="ex: bruno_p" />
+            <input type="text" id="perfil-username" maxlength="30" placeholder="ex: bruno_p" />
           </label>
           <label>Email <span class="muted">(não editável)</span>
             <input type="email" id="perfil-email" disabled />
@@ -305,7 +305,7 @@
           <input type="text" inputmode="decimal" id="servico-gorjeta" />
         </label>
         <label>Notas
-          <input type="text" id="servico-notas" />
+          <input type="text" id="servico-notas" maxlength="1000" />
         </label>
         <label class="check so-feito">
           <input type="checkbox" id="servico-pago" /> Já recebi este serviço
@@ -342,7 +342,7 @@
       <form id="form-quinta">
         <input type="hidden" id="quinta-id" />
         <label>Nome da quinta / cliente
-          <input type="text" id="quinta-nome" required placeholder="ex: Quinta do Vale" />
+          <input type="text" id="quinta-nome" required maxlength="100" placeholder="ex: Quinta do Vale" />
         </label>
         <label>Valor à hora (€)
           <input type="text" inputmode="decimal" id="quinta-valor" required placeholder="ex: 8,50" />
@@ -361,7 +361,7 @@
         <input type="hidden" id="quinta-lon" />
 
         <label>Notas <span class="muted">opcional</span>
-          <input type="text" id="quinta-notas" placeholder="contacto, observações" />
+          <input type="text" id="quinta-notas" maxlength="1000" placeholder="contacto, observações" />
         </label>
         <p id="quinta-erro" class="error hidden" role="alert"></p>
         <div class="modal-actions">

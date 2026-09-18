@@ -99,8 +99,9 @@ To run the app against your own backend:
    - `quintas` (venues), `servicos` (services) and `profiles` tables, with indexes
    - **Row Level Security** on every table, with policies that only let users read and write their own rows (`auth.uid() = user_id`)
    - a trigger that creates a profile when a user signs up
+   - **server-side validation**: the database itself enforces length limits, formats and valid values (for example, no negative amounts), and a service can only reference one of the user's own venues. The app applies the same limits in its forms.
 
-   The script contains no functions callable by unauthenticated clients. It also removes the old `email_do_username` function, if it exists.
+   The script contains no functions callable by unauthenticated clients. It also removes the old `email_do_username` function, if it exists. It can be run again on an existing database: it only adds what is missing and doesn't delete data.
 3. **Configure the client:** in **Project Settings → API**, copy the project URL and the `anon` public key, then edit `config.js`:
 
    ```js

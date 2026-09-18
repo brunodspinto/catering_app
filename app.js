@@ -158,8 +158,8 @@ function setupAuthUI() {
         const numero = $("#auth-numero").value.trim();
         const username = $("#auth-username").value.trim();
         if (!nome) throw new Error("Escreve o teu nome.");
-        if (!/^[a-zA-Z0-9_.]{3,}$/.test(username))
-          throw new Error("Username inválido: mínimo 3 caracteres, só letras, números, _ ou .");
+        if (!/^[A-Za-z0-9_.]{3,30}$/.test(username))
+          throw new Error("Username inválido: 3 a 30 caracteres, só letras, números, _ ou .");
         const { data, error } = await sb.auth.signUp({
           email, password,
           options: { data: { nome, apelido, numero: numero || null, username } },
@@ -204,6 +204,9 @@ function traduzErro(msg) {
   // o trigger que cria o perfil falha quando o username já existe (índice único)
   if (/database error saving new user/i.test(msg))
     return "Não foi possível criar a conta. Esse username já deve estar a ser usado — escolhe outro.";
+  // regras de validação da base de dados (CHECK): limites de tamanho, formatos, valores negativos
+  if (/check constraint/i.test(msg))
+    return "Alguns dados são inválidos ou demasiado longos. Verifica os campos.";
   if (/duplicate key|already exists|unique/i.test(msg)) return "Esse username já está a ser usado. Escolhe outro.";
   if (/confirm/i.test(msg)) return "Confirma o email antes de entrar (vê a tua caixa de correio).";
   if (/password/i.test(msg)) return "A senha tem de ter pelo menos 6 caracteres.";
@@ -1101,8 +1104,8 @@ async function guardarPerfil(e) {
   await executarMutacao(botao, async () => {
     if (!state.user) { toast("Sessão não encontrada."); return; }
     const username = $("#perfil-username").value.trim();
-    if (username && !/^[a-zA-Z0-9_.]{3,}$/.test(username)) {
-      toast("Username inválido: mínimo 3, só letras, números, _ ou ."); return;
+    if (username && !/^[A-Za-z0-9_.]{3,30}$/.test(username)) {
+      toast("Username inválido: 3 a 30 caracteres, só letras, números, _ ou ."); return;
     }
     const dados = {
       id: state.user.id,
