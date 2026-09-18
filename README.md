@@ -2,8 +2,6 @@
 
 🔗 **Live demo:** [bandejacatering.netlify.app](https://bandejacatering.netlify.app)
 
-[![Netlify Status](https://api.netlify.com/api/v1/badges/489339d2-b995-47fb-ba63-b8c9d8552778/deploy-status)](https://app.netlify.com/sites/bandejacatering/deploys)
-
 > **Note:** this is a demo instance. Signing up creates a real account in the database.
 
 **Bandeja** is a mobile-first Progressive Web App for catering staff who work shifts at wedding and event venues. It tracks every service worked, calculates hours and earnings automatically (including overnight shifts), keeps tips separate, and shows at a glance what each venue still owes.
