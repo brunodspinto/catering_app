@@ -1,7 +1,7 @@
 /* ============================================================
    Bandeja — Service Worker (faz a app abrir offline)
    ============================================================ */
-const CACHE = "bandeja-v5";
+const CACHE = "bandeja-v6";
 const ASSETS = [
   "./",
   "./index.html",
@@ -42,7 +42,8 @@ self.addEventListener("fetch", (e) => {
     fetch(req)
       .then((res) => {
         // só guarda respostas boas: uma página de erro (404/500) não pode substituir a cópia offline
-        if (res.ok) {
+        // nem endereços com "?…": os links do email (?code=…) são de uso único e só enchiam a cache
+        if (res.ok && !url.search) {
           const copy = res.clone();
           caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
         }

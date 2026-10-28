@@ -265,8 +265,8 @@ async function carregarTudo() {
     state.profile = p.data || null;
     // guardar para uso offline
     try {
-      localStorage.setItem("bandeja_cache",
-        JSON.stringify({ quintas: state.quintas, servicos: state.servicos, profile: state.profile }));
+      localStorage.setItem("bandeja_cache", JSON.stringify({
+        userId: state.user.id, quintas: state.quintas, servicos: state.servicos, profile: state.profile }));
     } catch (e) {}
   } catch (err) {
     if (desatualizado()) return;
@@ -287,9 +287,31 @@ async function carregarTudo() {
   renderTudo();
 }
 
+// a cópia offline só serve se for do utilizador com sessão (num aparelho partilhado,
+// nunca mostrar os dados de outra pessoa)
 function lerCache() {
-  try { return JSON.parse(localStorage.getItem("bandeja_cache")); }
-  catch (e) { return null; }
+  try {
+    const cache = JSON.parse(localStorage.getItem("bandeja_cache"));
+    return cache && state.user && cache.userId === state.user.id ? cache : null;
+  } catch (e) { return null; }
+}
+
+// esquece os dados do utilizador anterior (ao sair, ou antes de carregar outro)
+function limparDados() {
+  state.quintas = [];
+  state.servicos = [];
+  state.profile = null;
+}
+
+// app reaberta depois de algum tempo em segundo plano: volta a buscar os dados
+// (o telemóvel pode ter ficado dias com a app suspensa e outro aparelho ter mudado algo)
+const RECARREGAR_APOS_MS = 5 * 60 * 1000;
+let escondidaDesde = null;
+function aoMudarVisibilidade() {
+  if (document.hidden) { escondidaDesde = Date.now(); return; }
+  const longe = escondidaDesde && Date.now() - escondidaDesde >= RECARREGAR_APOS_MS;
+  escondidaDesde = null;
+  if (longe && state.user && !janelas.length) carregarTudo();   // não mexe a meio de um formulário
 }
 
 function renderTudo() {
@@ -593,11 +615,13 @@ function horaPadraoDaQuinta() {
 
 // valor/hora a aplicar: se estamos a editar e a quinta não mudou, mantém o valor
 // guardado nesse dia; caso contrário usa o valor atual da quinta escolhida.
+// Um agendado ainda não foi trabalhado: o valor que guardou ao marcar pode estar
+// desatualizado, por isso usa sempre o valor atual (igual a concluí-lo pelo "+").
 function valorHoraAtual() {
   const qid = $("#servico-quinta").value;
   const q = state.quintas.find((x) => x.id === qid);
   const edit = state.editandoServico;
-  if (edit && edit.quinta_id === qid) return Number(edit.valor_hora);
+  if (edit && edit.estado !== "agendado" && edit.quinta_id === qid) return Number(edit.valor_hora);
   return q ? Number(q.valor_hora) : 0;
 }
 
@@ -1552,6 +1576,7 @@ function ligarEventos() {
 
   // janelas: Tab preso na janela de cima, Escape fecha-a
   document.addEventListener("keydown", teclasJanelas);
+  document.addEventListener("visibilitychange", aoMudarVisibilidade);
 
   // seletor de data (calendário)
   $$(".date-trigger").forEach((b) => b.addEventListener("click", () => abrirDatePicker(b)));
@@ -1616,12 +1641,17 @@ function init() {
       const mudouUtilizador = !state.user || state.user.id !== session.user.id;
       state.user = session.user;
       if (mudouUtilizador) {
+        limparDados();
+        renderTudo();   // não deixar à vista os dados de outra conta enquanto carrega
         mostrarApp(true);
         carregarTudo();
       }
     } else {
       carregamentoAtual++;   // ao sair, uma resposta que ainda venha a caminho é ignorada
       state.user = null;
+      fecharModais();   // ex.: a sessão expirou com um formulário aberto
+      limparDados();
+      renderTudo();
       localStorage.removeItem("bandeja_cache");  // limpa dados offline ao sair
       mostrarApp(false);
     }
