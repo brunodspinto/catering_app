@@ -1,12 +1,12 @@
 # Bandeja 🍽️
 
-🔗 **Live demo:** [bandejacatering.netlify.app](https://bandejacatering.netlify.app)
+🔗 **Live app:** [bandejacatering.netlify.app](https://bandejacatering.netlify.app)
 
-> **Note:** this is a demo instance. Signing up creates a real account in the database.
+> This is the production app, in daily use. Anyone can create a free account; each account only sees its own data.
 
 **Bandeja** is a mobile-first Progressive Web App for catering staff who work shifts at wedding and event venues. It tracks every service worked, calculates hours and earnings automatically (including overnight shifts), keeps tips separate, and shows at a glance what each venue still owes.
 
-The interface is in European Portuguese (pt-PT). Data is stored in [Supabase](https://supabase.com) and synced across phone and desktop, with an offline fallback.
+The interface is in European Portuguese (pt-PT). Data is stored in [Supabase](https://supabase.com) and synced across phone and desktop. It also works offline: changes are saved on the device and sent when the connection returns.
 
 ## Screenshots
 
