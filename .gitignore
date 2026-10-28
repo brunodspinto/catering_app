@@ -25,3 +25,5 @@ node_modules/
 *.sqlite
 *.db
 *.bak
+# Added by code-review-graph
+.code-review-graph/
