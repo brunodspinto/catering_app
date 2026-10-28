@@ -556,16 +556,26 @@ function renderQuintas() {
 /* ============================================================
    MODAL SERVIÇO
    ============================================================ */
-function preencherSelectQuintas(selId) {
+// valor do <select> para um serviço cuja quinta já foi apagada (mantém o nome e o valor guardados)
+const QUINTA_APAGADA = "__apagada";
+
+// servico: o serviço a editar (se for de uma quinta que já não existe, essa opção aparece
+// e fica escolhida — senão o browser escolhia a primeira quinta sem avisar)
+function preencherSelectQuintas(servico) {
   const sel = $("#servico-quinta");
-  if (!state.quintas.length) {
-    sel.innerHTML = `<option value="">(cria uma quinta primeiro)</option>`;
-    return;
-  }
-  sel.innerHTML = state.quintas
-    .map((q) => `<option value="${q.id}">${escapeHtml(q.nome)}</option>`)
-    .join("");
-  if (selId) sel.value = selId;
+  const apagada = servico && !state.quintas.some((q) => q.id === servico.quinta_id);
+  const opcoes = state.quintas.map((q) => `<option value="${q.id}">${escapeHtml(q.nome)}</option>`);
+  if (apagada) opcoes.unshift(`<option value="${QUINTA_APAGADA}">${escapeHtml(servico.quinta_nome || "—")} (apagada)</option>`);
+  sel.innerHTML = opcoes.join("") || `<option value="">(cria uma quinta primeiro)</option>`;
+  if (servico) sel.value = apagada ? QUINTA_APAGADA : servico.quinta_id;
+}
+
+// a quinta escolhida no formulário ({ id, nome, valor_hora }); a apagada fica sem id
+function quintaEscolhida() {
+  const qid = $("#servico-quinta").value;
+  const edit = state.editandoServico;
+  if (qid === QUINTA_APAGADA && edit) return { id: null, nome: edit.quinta_nome, valor_hora: edit.valor_hora };
+  return state.quintas.find((x) => x.id === qid) || null;
 }
 
 function abrirModalServico(id) {
@@ -594,7 +604,7 @@ function abrirModalServico(id) {
   } else {
     const s = state.editandoServico;
     if (!s) return;
-    preencherSelectQuintas(s.quinta_id);
+    preencherSelectQuintas(s);
     setData("servico-data", s.data);
     setHora("servico-inicio", s.hora_inicio ? s.hora_inicio.slice(0, 5) : "");
     setHora("servico-fim", s.hora_fim ? s.hora_fim.slice(0, 5) : "");
@@ -650,9 +660,10 @@ function horaPadraoDaQuinta() {
 // desatualizado, por isso usa sempre o valor atual (igual a concluí-lo pelo "+").
 function valorHoraAtual() {
   const qid = $("#servico-quinta").value;
-  const q = state.quintas.find((x) => x.id === qid);
+  const q = quintaEscolhida();
   const edit = state.editandoServico;
-  if (edit && edit.estado !== "agendado" && edit.quinta_id === qid) return Number(edit.valor_hora);
+  if (edit && (qid === QUINTA_APAGADA || (edit.estado !== "agendado" && edit.quinta_id === qid)))
+    return Number(edit.valor_hora);
   return q ? Number(q.valor_hora) : 0;
 }
 
@@ -681,8 +692,7 @@ async function guardarServico(e) {
   await executarMutacao(botao, async () => {
     limparErroForm("servico-erro");
     const id = $("#servico-id").value;
-    const qid = $("#servico-quinta").value;
-    const q = state.quintas.find((x) => x.id === qid);
+    const q = quintaEscolhida();
     if (!q) return erroForm("servico-erro", "Escolhe uma quinta.", $("#servico-quinta"));
     const agendado = state.modoServico === "agendado";
     if (!$("#servico-data").value)
@@ -1153,7 +1163,7 @@ const ROTULOS = {
 //   { tabela, tipo: "novo" | "editar" | "apagar", id, base, dados, quando }
 //   base = a linha como estava no servidor (com a versão) quando se começou a mudar
 // conflitos: alterações que precisam de uma decisão (ver resolverConflito)
-const sync = { fila: [], conflitos: [], aEnviar: false };
+const sync = { fila: [], conflitos: [], aEnviar: false, tentarDeNovo: null };
 
 const copia = (x) => (x == null ? null : JSON.parse(JSON.stringify(x)));
 const listaDe = (tabela) => (tabela === "servicos" ? state.servicos : state.quintas);
@@ -1333,6 +1343,10 @@ async function sincronizar() {
   } finally {
     sync.aEnviar = false;
   }
+  // a rede falhou mas o telemóvel diz que está "online" (rede fraca na quinta): o evento
+  // "online" não vai chegar, por isso volta a tentar daqui a pouco
+  if (sync.fila.length && navigator.onLine && !sync.tentarDeNovo)
+    sync.tentarDeNovo = setTimeout(() => { sync.tentarDeNovo = null; sincronizar(); }, 30000);
   if (mudou) await carregarTudo();
   else renderAvisosSync();
 }
