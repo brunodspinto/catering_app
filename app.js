@@ -238,13 +238,20 @@ async function carregarServicos() {
   }
 }
 
+// cada carregamento leva um número; se entretanto começou outro, a resposta deste
+// (mais antiga) é ignorada e não pode tapar dados mais recentes
+let carregamentoAtual = 0;
+
 async function carregarTudo() {
+  const meu = ++carregamentoAtual;
+  const desatualizado = () => meu !== carregamentoAtual;
   try {
     const [q, servicos, p] = await Promise.all([
       sb.from("quintas").select("*").order("nome"),
       carregarServicos(),
       sb.from("profiles").select("*").eq("id", state.user.id).maybeSingle(),
     ]);
+    if (desatualizado()) return;
     if (q.error) throw q.error;
     state.quintas = q.data || [];
     state.servicos = servicos;
@@ -255,6 +262,7 @@ async function carregarTudo() {
         JSON.stringify({ quintas: state.quintas, servicos: state.servicos, profile: state.profile }));
     } catch (e) {}
   } catch (err) {
+    if (desatualizado()) return;
     // não deu para carregar: mostrar a última cópia guardada (se houver) e dizer porquê
     const semRede = !navigator.onLine || /fetch|network/i.test((err && err.message) || "");
     const cache = lerCache();
@@ -1593,10 +1601,16 @@ function init() {
       return;
     }
     if (session) {
+      // só carrega quando entra um utilizador novo; a renovação do token (TOKEN_REFRESHED),
+      // USER_UPDATED e o SIGNED_IN da confirmação da palavra-passe não mudam os dados
+      const mudouUtilizador = !state.user || state.user.id !== session.user.id;
       state.user = session.user;
-      mostrarApp(true);
-      carregarTudo();
+      if (mudouUtilizador) {
+        mostrarApp(true);
+        carregarTudo();
+      }
     } else {
+      carregamentoAtual++;   // ao sair, uma resposta que ainda venha a caminho é ignorada
       state.user = null;
       localStorage.removeItem("bandeja_cache");  // limpa dados offline ao sair
       mostrarApp(false);

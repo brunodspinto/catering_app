@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- CSP: o browser só corre scripts daqui e do jsDelivr, e só fala com o Supabase.
+       ('unsafe-inline' só nos estilos: há atributos style="" no HTML e nas listas) -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'" />
   <meta name="theme-color" content="#0f1419" />
   <link rel="manifest" href="manifest.json" />
   <!-- iPhone: ícone no ecrã principal + app em ecrã inteiro -->

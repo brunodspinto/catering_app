@@ -137,6 +137,7 @@ alter table public.servicos
   drop constraint if exists servicos_valor_hora_nao_negativo,
   drop constraint if exists servicos_gorjeta_nao_negativa,
   drop constraint if exists servicos_horas_se_realizado,
+  drop constraint if exists servicos_horas_diferentes,
   drop constraint if exists servicos_quinta_nome_nao_vazio,
   drop constraint if exists servicos_quinta_nome_tamanho,
   drop constraint if exists servicos_notas_tamanho;
@@ -146,6 +147,8 @@ alter table public.servicos
   add constraint servicos_gorjeta_nao_negativa    check (gorjeta >= 0),
   -- só os agendados podem não ter horas
   add constraint servicos_horas_se_realizado      check (estado = 'agendado' or (hora_inicio is not null and hora_fim is not null)),
+  -- entrada igual à saída não é um turno (a app também recusa); NULL nos agendados passa
+  add constraint servicos_horas_diferentes        check (hora_inicio <> hora_fim),
   add constraint servicos_quinta_nome_nao_vazio   check (length(trim(quinta_nome)) > 0),
   add constraint servicos_quinta_nome_tamanho     check (char_length(quinta_nome) <= 100),
   add constraint servicos_notas_tamanho           check (char_length(notas) <= 1000);
