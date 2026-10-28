@@ -41,9 +41,11 @@ const fmtData = (d) => {
   return dt.toLocaleDateString("pt-PT", { day: "2-digit", month: "short" });
 };
 
+// arredonda primeiro ao minuto: somas de horas decimais (ex.: 2,99999…) davam "2h60"
 const fmtHoras = (h) => {
-  const horas = Math.floor(h);
-  const min = Math.round((h - horas) * 60);
+  const totalMin = Math.round(h * 60);
+  const horas = Math.floor(totalMin / 60);
+  const min = totalMin % 60;
   return min ? `${horas}h${String(min).padStart(2, "0")}` : `${horas}h`;
 };
 
@@ -220,16 +222,32 @@ function traduzErro(msg) {
 /* ============================================================
    CARREGAR DADOS
    ============================================================ */
+// o Supabase devolve no máximo 1000 linhas por pedido: pede os serviços aos bocados
+// até vir tudo (senão, com muitos serviços, os mais antigos faltavam nos totais)
+const TAMANHO_PAGINA = 1000;
+async function carregarServicos() {
+  const todos = [];
+  for (let de = 0; ; de += TAMANHO_PAGINA) {
+    const { data, error } = await sb.from("servicos").select("*")
+      .order("data", { ascending: false })
+      .order("id")                       // desempate fixo: as páginas não se sobrepõem
+      .range(de, de + TAMANHO_PAGINA - 1);
+    if (error) throw error;
+    todos.push(...(data || []));
+    if (!data || data.length < TAMANHO_PAGINA) return todos;
+  }
+}
+
 async function carregarTudo() {
   try {
-    const [q, s, p] = await Promise.all([
+    const [q, servicos, p] = await Promise.all([
       sb.from("quintas").select("*").order("nome"),
-      sb.from("servicos").select("*").order("data", { ascending: false }),
+      carregarServicos(),
       sb.from("profiles").select("*").eq("id", state.user.id).maybeSingle(),
     ]);
-    if (q.error || s.error) throw (q.error || s.error);
+    if (q.error) throw q.error;
     state.quintas = q.data || [];
-    state.servicos = s.data || [];
+    state.servicos = servicos;
     state.profile = p.data || null;
     // guardar para uso offline
     try {
@@ -237,14 +255,19 @@ async function carregarTudo() {
         JSON.stringify({ quintas: state.quintas, servicos: state.servicos, profile: state.profile }));
     } catch (e) {}
   } catch (err) {
-    // sem internet (ou erro de rede): mostrar a última cópia guardada
+    // não deu para carregar: mostrar a última cópia guardada (se houver) e dizer porquê
+    const semRede = !navigator.onLine || /fetch|network/i.test((err && err.message) || "");
     const cache = lerCache();
     if (cache) {
       state.quintas = cache.quintas || [];
       state.servicos = cache.servicos || [];
       state.profile = cache.profile || null;
-      toast("Sem internet — a mostrar os últimos dados guardados.");
     }
+    toast(semRede
+      ? (cache ? "Sem internet — a mostrar os últimos dados guardados."
+               : "Sem internet e sem dados guardados neste aparelho. Liga-te à internet para veres os teus dados.")
+      : (cache ? "Não foi possível atualizar os dados — a mostrar os últimos guardados."
+               : "Não foi possível carregar os teus dados. Fecha e volta a abrir a app."));
   }
   renderTudo();
 }
@@ -1315,23 +1338,26 @@ async function trocarPassword(e) {
   if (nova !== nova2) { toast("A confirmação não coincide com a nova palavra-passe."); return; }
   if (!state.user) { toast("Sessão não encontrada. Entra de novo."); return; }
 
-  const btn = $("#form-password button[type=submit]");
-  btn.disabled = true; btn.textContent = "A alterar…";
+  const btn = e.submitter || $("#form-password button[type=submit]");
+  await executarMutacao(btn, async () => {
+    btn.textContent = "A alterar…";
+    try {
+      // 1) confirmar a palavra-passe ATUAL
+      const { error: e1 } = await sb.auth.signInWithPassword({ email: state.user.email, password: atual });
+      if (e1) {
+        toast(/fetch|network/i.test(e1.message) ? "Sem ligação à internet." : "A palavra-passe atual está errada.");
+        return;
+      }
+      // 2) definir a NOVA
+      const { error: e2 } = await sb.auth.updateUser({ password: nova });
+      if (e2) { toast("Erro: " + e2.message); return; }
 
-  // 1) confirmar a palavra-passe ATUAL
-  const { error: e1 } = await sb.auth.signInWithPassword({ email: state.user.email, password: atual });
-  if (e1) {
-    toast("A palavra-passe atual está errada.");
-    btn.disabled = false; btn.textContent = "Alterar palavra-passe";
-    return;
-  }
-  // 2) definir a NOVA
-  const { error: e2 } = await sb.auth.updateUser({ password: nova });
-  btn.disabled = false; btn.textContent = "Alterar palavra-passe";
-  if (e2) { toast("Erro: " + e2.message); return; }
-
-  $("#form-password").reset();
-  toast("Palavra-passe alterada! ✅");
+      $("#form-password").reset();
+      toast("Palavra-passe alterada! ✅");
+    } finally {
+      btn.textContent = "Alterar palavra-passe";   // mesmo que a ligação falhe a meio
+    }
+  });
 }
 
 // vindo do link do email (recuperação): definir nova palavra-passe
@@ -1340,10 +1366,13 @@ async function guardarRecovery(e) {
   const nova = $("#rec-nova").value, nova2 = $("#rec-nova2").value;
   if (nova.length < 6) { toast("A palavra-passe tem de ter pelo menos 6 caracteres."); return; }
   if (nova !== nova2) { toast("A confirmação não coincide."); return; }
-  const { error } = await sb.auth.updateUser({ password: nova });
-  if (error) { toast("Erro: " + error.message); return; }
-  fecharModais();
-  toast("Palavra-passe definida! ✅ Já estás dentro.");
+  const botao = e.submitter || $("#form-recovery button[type=submit]");
+  await executarMutacao(botao, async () => {
+    const { error } = await sb.auth.updateUser({ password: nova });
+    if (error) { toast("Erro: " + error.message); return; }
+    fecharModais();
+    toast("Palavra-passe definida! ✅ Já estás dentro.");
+  });
 }
 
 /* ============================================================
