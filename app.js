@@ -252,7 +252,16 @@ let carregamentoAtual = 0;
 async function carregarTudo() {
   const meu = ++carregamentoAtual;
   const desatualizado = () => meu !== carregamentoAtual;
+  // ao abrir a app: mostra já a cópia guardada enquanto os dados novos não chegam
+  // (sem rede, o Supabase repete cada pedido 3 vezes — ~7 s — antes de desistir)
+  const cacheInicial = !state.servicos.length && !state.quintas.length ? lerCache() : null;
+  if (cacheInicial) {
+    aplicarCache(cacheInicial);
+    renderTudo();
+  }
   try {
+    // o aparelho sabe que está sem rede: nem tenta (evita as repetições)
+    if (!navigator.onLine) throw new Error("network: offline");
     const [q, servicos, p] = await Promise.all([
       sb.from("quintas").select("*").order("nome"),
       carregarServicos(),
@@ -273,11 +282,7 @@ async function carregarTudo() {
     // não deu para carregar: mostrar a última cópia guardada (se houver) e dizer porquê
     const semRede = !navigator.onLine || /fetch|network/i.test((err && err.message) || "");
     const cache = lerCache();
-    if (cache) {
-      state.quintas = cache.quintas || [];
-      state.servicos = cache.servicos || [];
-      state.profile = cache.profile || null;
-    }
+    if (cache) aplicarCache(cache);
     toast(semRede
       ? (cache ? "Sem internet — a mostrar os últimos dados guardados."
                : "Sem internet e sem dados guardados neste aparelho. Liga-te à internet para veres os teus dados.")
@@ -294,6 +299,12 @@ function lerCache() {
     const cache = JSON.parse(localStorage.getItem("bandeja_cache"));
     return cache && state.user && cache.userId === state.user.id ? cache : null;
   } catch (e) { return null; }
+}
+
+function aplicarCache(cache) {
+  state.quintas = cache.quintas || [];
+  state.servicos = cache.servicos || [];
+  state.profile = cache.profile || null;
 }
 
 // esquece os dados do utilizador anterior (ao sair, ou antes de carregar outro)
