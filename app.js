@@ -207,9 +207,20 @@ function erroLogin(msg) {
   if (/escreve um email/i.test(msg)) return msg;
   if (/not confirmed/i.test(msg)) return "Confirma o email antes de entrar (vê a tua caixa de correio).";
   if (/rate limit|too many/i.test(msg)) return "Demasiadas tentativas. Espera uns minutos e tenta de novo.";
-  if (/fetch|network/i.test(msg)) return "Sem ligação à internet.";
+  if (erroDeRede(msg)) return "Sem ligação à internet.";
   return "Email ou senha errados.";
 }
+
+// falha de rede, seja qual for o browser: "Failed to fetch" (Chrome),
+// "Load failed" (Safari/iPhone), "NetworkError…" (Firefox)
+const erroDeRede = (msg) => /fetch|network|load failed|internet connection|offline/i.test(msg || "");
+
+// mensagem para o utilizador quando uma escrita falha
+function msgErro(err) {
+  const msg = err && err.message ? err.message : String(err);
+  return erroDeRede(msg) ? MSG_SEM_REDE : "Erro: " + msg;
+}
+const MSG_SEM_REDE = "Sem internet — não foi guardado. Tenta de novo quando tiveres rede.";
 
 function traduzErro(msg) {
   if (/invalid login/i.test(msg)) return "Email ou senha errados.";
@@ -280,7 +291,7 @@ async function carregarTudo() {
   } catch (err) {
     if (desatualizado()) return;
     // não deu para carregar: mostrar a última cópia guardada (se houver) e dizer porquê
-    const semRede = !navigator.onLine || /fetch|network/i.test((err && err.message) || "");
+    const semRede = !navigator.onLine || erroDeRede(err && err.message);
     const cache = lerCache();
     if (cache) aplicarCache(cache);
     toast(semRede
@@ -506,7 +517,7 @@ async function togglePagoServico(id, botao) {
     if (!s) return;
     const novo = s.estado === "pago" ? "pendente" : "pago";
     const { error } = await sb.from("servicos").update({ estado: novo }).eq("id", id);
-    if (error) { toast("Erro: " + error.message); return; }
+    if (error) { toast(msgErro(error)); return; }
     toast(novo === "pago" ? "Marcado como pago ✅" : "Marcado como por receber");
     focoPendente = `[data-pago="${id}"]`;   // o selo é redesenhado: devolver-lhe o foco
     await carregarTudo();
@@ -714,7 +725,7 @@ async function gravarServico(id, q, agendado, gorjeta) {
   else if (ag) ({ error } = await sb.from("servicos").update(dados).eq("id", ag.id));
   else         ({ error } = await sb.from("servicos").upsert({ id: state.novoServicoId, ...dados }));
 
-  if (error) { toast("Erro: " + error.message); return; }
+  if (error) { toast(msgErro(error)); return; }
   fecharModais();
   toast(id ? "Serviço atualizado." : ag ? "Serviço agendado concluído ✅" : "Serviço guardado.");
   await carregarTudo();
@@ -726,7 +737,7 @@ async function apagarServico(e) {
   if (!confirm("Apagar este serviço?")) return;
   await executarMutacao(e.currentTarget, async () => {
     const { error } = await sb.from("servicos").delete().eq("id", id);
-    if (error) { toast("Erro: " + error.message); return; }
+    if (error) { toast(msgErro(error)); return; }
     fecharModais();
     toast("Serviço apagado.");
     await carregarTudo();
@@ -1092,7 +1103,7 @@ async function guardarQuinta(e) {
     if (id) ({ error } = await sb.from("quintas").update(dados).eq("id", id));
     else    ({ error } = await sb.from("quintas").upsert({ id: state.novaQuintaId, ...dados }));
 
-    if (error) { toast("Erro: " + error.message); return; }
+    if (error) { toast(msgErro(error)); return; }
     fecharModais();
     toast(id ? "Quinta atualizada." : "Quinta guardada.");
     await carregarTudo();
@@ -1105,7 +1116,7 @@ async function apagarQuinta(e) {
   if (!confirm("Apagar esta quinta? Os serviços antigos mantêm-se com o nome guardado.")) return;
   await executarMutacao(e.currentTarget, async () => {
     const { error } = await sb.from("quintas").delete().eq("id", id);
-    if (error) { toast("Erro: " + error.message); return; }
+    if (error) { toast(msgErro(error)); return; }
     fecharModais();
     toast("Quinta apagada.");
     await carregarTudo();
@@ -1398,12 +1409,12 @@ async function trocarPassword(e) {
       // 1) confirmar a palavra-passe ATUAL
       const { error: e1 } = await sb.auth.signInWithPassword({ email: state.user.email, password: atual });
       if (e1) {
-        toast(/fetch|network/i.test(e1.message) ? "Sem ligação à internet." : "A palavra-passe atual está errada.");
+        toast(erroDeRede(e1.message) ? "Sem ligação à internet." : "A palavra-passe atual está errada.");
         return;
       }
       // 2) definir a NOVA
       const { error: e2 } = await sb.auth.updateUser({ password: nova });
-      if (e2) { toast("Erro: " + e2.message); return; }
+      if (e2) { toast(msgErro(e2)); return; }
 
       $("#form-password").reset();
       toast("Palavra-passe alterada! ✅");
@@ -1422,7 +1433,7 @@ async function guardarRecovery(e) {
   const botao = e.submitter || $("#form-recovery button[type=submit]");
   await executarMutacao(botao, async () => {
     const { error } = await sb.auth.updateUser({ password: nova });
-    if (error) { toast("Erro: " + error.message); return; }
+    if (error) { toast(msgErro(error)); return; }
     fecharModais();
     toast("Palavra-passe definida! ✅ Já estás dentro.");
   });
@@ -1512,6 +1523,8 @@ const mutacoesEmCurso = new WeakSet();
 async function executarMutacao(botao, fn) {
   const chave = botao.form || botao;
   if (mutacoesEmCurso.has(chave)) return;
+  // sem rede: avisa logo, sem esperar que o pedido falhe (o formulário fica aberto)
+  if (!navigator.onLine) { toast(MSG_SEM_REDE); return; }
   mutacoesEmCurso.add(chave);
   const botoes = botao.form ? Array.from(botao.form.querySelectorAll("button")) : [botao];
   const desativados = botoes.filter((b) => !b.disabled);   // só reativa os que estavam ativos
@@ -1520,7 +1533,7 @@ async function executarMutacao(botao, fn) {
   try {
     await fn();
   } catch (err) {
-    toast("Erro: " + (err && err.message ? err.message : err));
+    toast(msgErro(err));
   } finally {
     desativados.forEach((b) => { b.disabled = false; });
     botao.removeAttribute("aria-busy");

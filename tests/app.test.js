@@ -17,7 +17,7 @@ function carregarApp() {
   });
   return vm.runInContext(`${codigo}
     ;({ calcHoras, fmtHoras, validarHorario, totalServico, parseNum, lerEuros,
-        horaAgoraArredondada, dataSugeridaServico, escapeHtml })`, contexto);
+        horaAgoraArredondada, dataSugeridaServico, escapeHtml, erroDeRede, msgErro })`, contexto);
 }
 const app = carregarApp();
 
@@ -73,4 +73,12 @@ test("dataSugeridaServico: de madrugada sugere o dia anterior", () => {
 
 test("escapeHtml: neutraliza HTML", () => {
   assert.equal(app.escapeHtml(`<b onclick="x">'&'</b>`), "&lt;b onclick=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/b&gt;");
+});
+
+test("erroDeRede / msgErro: reconhece a falha de rede de cada browser", () => {
+  for (const m of ["TypeError: Load failed", "Failed to fetch", "NetworkError when attempting to fetch resource."])
+    assert.ok(app.erroDeRede(m), m);
+  assert.ok(!app.erroDeRede("new row violates check constraint"));
+  assert.match(app.msgErro(new Error("TypeError: Load failed")), /Sem internet/);
+  assert.equal(app.msgErro(new Error("outra coisa")), "Erro: outra coisa");
 });
