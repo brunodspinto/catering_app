@@ -72,6 +72,7 @@ _Screenshots show fictional sample data._
 | `config.js` | Supabase project URL and anon key |
 | `supabase_schema.sql` | Database tables, indexes, RLS policies, profile trigger and functions |
 | `sw.js` | Service worker (offline support) |
+| `tests/app.test.js` | Tests for the calculation helpers (hours, totals, money parsing, dates) |
 | `manifest.json`, `icon.svg`, `icon-*.png`, `apple-touch-icon.png` | PWA manifest and icons |
 
 ## Running locally
@@ -85,6 +86,12 @@ npx serve .
 Then open the URL shown in the terminal (usually `http://localhost:3000`).
 
 > Serve the files over HTTP rather than opening `index.html` directly: the service worker only registers on `http(s)://` origins.
+
+To run the tests (Node.js 18 or later, no install needed):
+
+```bash
+node --test
+```
 
 To deploy it, upload the folder to any static host (Netlify, Vercel, GitHub Pages, …).
 
@@ -120,7 +127,7 @@ These settings keep sign-ups open while limiting abuse:
 | Custom SMTP | Authentication → Emails → SMTP Settings | Use your own provider (e.g. Resend, Brevo). Supabase's built-in email service is heavily rate-limited and meant for testing only. |
 | Confirm email | Authentication → Sign In / Providers → Email | **On.** Users can't register with someone else's email, and sign-up responses no longer reveal whether an email is already registered. |
 | Site URL and Redirect URLs | Authentication → URL Configuration | Add the deployed URL; the confirmation and password-reset links redirect there. |
-| Minimum password length | Authentication → Sign In / Providers → Email | 8 or more characters (update the `minlength` attributes and messages in the app to match). |
+| Minimum password length | Authentication → Sign In / Providers → Email | 8 or more characters (the app already asks for 8 on new passwords: `PW_MIN` in `app.js`). |
 | Secure email change | Authentication → Sign In / Providers → Email | On. |
 | Rate limits | Authentication → Rate Limits | Keep the defaults, or lower sign-ups per IP. |
 | CAPTCHA | Authentication → Attack Protection | Optional (e.g. Cloudflare Turnstile). **Requires app changes first:** a `captchaToken` must be sent with `signUp`, `signInWithPassword` (including the current-password check when changing password) and `resetPasswordForEmail`, otherwise every login will fail. |

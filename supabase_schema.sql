@@ -16,9 +16,11 @@ create table if not exists public.quintas (
   latitude    double precision,                  -- localização (para reconhecer a quinta)
   longitude   double precision,
   notas       text,
-  ativo       boolean not null default true,
   created_at  timestamptz not null default now()
 );
+
+-- a coluna "ativo" nunca foi usada pela app (era sempre true): remove-a das bases antigas
+alter table public.quintas drop column if exists ativo;
 
 -- ---------- Tabela: serviços (turnos trabalhados) ----------
 create table if not exists public.servicos (

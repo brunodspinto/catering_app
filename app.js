@@ -131,6 +131,8 @@ function setupAuthUI() {
     $(".signup-only").classList.toggle("hidden", !modoCriarConta);
     // ajuda o iPhone/iCloud a guardar a password (Face ID) ao criar conta
     $("#auth-password").setAttribute("autocomplete", modoCriarConta ? "new-password" : "current-password");
+    // contas novas: mínimo PW_MIN; ao entrar aceita as senhas antigas, mais curtas
+    $("#auth-password").setAttribute("minlength", modoCriarConta ? PW_MIN : 6);
     $("#auth-error").classList.add("hidden");
   });
 
@@ -164,6 +166,7 @@ function setupAuthUI() {
         const numero = $("#auth-numero").value.trim();
         const username = $("#auth-username").value.trim();
         if (!nome) throw new Error("Escreve o teu nome.");
+        if (password.length < PW_MIN) throw new Error(MSG_PW_CURTA);
         if (!/^[A-Za-z0-9_.]{3,30}$/.test(username))
           throw new Error("Username inválido: 3 a 30 caracteres, só letras, números, _ ou .");
         const { data, error } = await sb.auth.signUp({
@@ -193,6 +196,10 @@ function showAuthError(msg) {
   el.classList.remove("hidden");
 }
 
+// tamanho mínimo das palavras-passe novas (igual ao definido no Supabase → Auth)
+const PW_MIN = 8;
+const MSG_PW_CURTA = `A palavra-passe tem de ter pelo menos ${PW_MIN} caracteres.`;
+
 const emailValido = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 // erros do login: mensagem genérica, sem dizer se o email existe
@@ -215,7 +222,7 @@ function traduzErro(msg) {
     return "Alguns dados são inválidos ou demasiado longos. Verifica os campos.";
   if (/duplicate key|already exists|unique/i.test(msg)) return "Esse username já está a ser usado. Escolhe outro.";
   if (/confirm/i.test(msg)) return "Confirma o email antes de entrar (vê a tua caixa de correio).";
-  if (/password/i.test(msg)) return "A senha tem de ter pelo menos 6 caracteres.";
+  if (/password/i.test(msg)) return MSG_PW_CURTA;
   return msg;
 }
 
@@ -360,10 +367,13 @@ function itemBotaoHTML(dataAttr, id, tituloHTML, subHTML) {
 function servicoItemHTML(s) {
   // agendado: ainda não tem horas nem valor
   if (s.estado === "agendado") {
+    // o dia já passou e ainda não foi registado: lembrar de lhe pôr as horas
+    const passou = s.data < hojeISO();
     return `
     <div class="item item-clicavel">${itemBotaoHTML("servico", s.id, escapeHtml(s.quinta_nome || "—"),
         fmtDataLonga(s.data) + (s.notas ? " · " + escapeHtml(s.notas) : ""))}
-      <div class="right"><span class="badge agendado">Agendado</span></div>
+      <div class="right"><span class="badge ${passou ? "atrasado" : "agendado"}"${passou
+        ? ` title="Abre o serviço e regista as horas"` : ""}>${passou ? "Já passou" : "Agendado"}</span></div>
     </div>`;
   }
 
@@ -1342,7 +1352,7 @@ async function trocarPassword(e) {
   const atual = $("#pw-atual").value;
   const nova = $("#pw-nova").value;
   const nova2 = $("#pw-nova2").value;
-  if (nova.length < 6) { toast("A nova palavra-passe tem de ter pelo menos 6 caracteres."); return; }
+  if (nova.length < PW_MIN) { toast(MSG_PW_CURTA); return; }
   if (nova !== nova2) { toast("A confirmação não coincide com a nova palavra-passe."); return; }
   if (!state.user) { toast("Sessão não encontrada. Entra de novo."); return; }
 
@@ -1372,7 +1382,7 @@ async function trocarPassword(e) {
 async function guardarRecovery(e) {
   e.preventDefault();
   const nova = $("#rec-nova").value, nova2 = $("#rec-nova2").value;
-  if (nova.length < 6) { toast("A palavra-passe tem de ter pelo menos 6 caracteres."); return; }
+  if (nova.length < PW_MIN) { toast(MSG_PW_CURTA); return; }
   if (nova !== nova2) { toast("A confirmação não coincide."); return; }
   const botao = e.submitter || $("#form-recovery button[type=submit]");
   await executarMutacao(botao, async () => {
