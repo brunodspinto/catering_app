@@ -237,6 +237,36 @@ create trigger on_auth_user_email_changed
   for each row when (old.email is distinct from new.email)
   execute function public.sincronizar_email_perfil();
 
+-- ---------- Versão de cada linha (gravar sem internet) ----------
+-- A app guarda alterações feitas offline e envia-as mais tarde. Cada alteração diz em que
+-- versão da linha se baseou; se entretanto outro aparelho mexeu (a versão subiu), a app
+-- percebe que há duas alterações para juntar em vez de apagar uma com a outra.
+alter table public.quintas
+  add column if not exists versao        integer     not null default 1,
+  add column if not exists atualizado_em timestamptz not null default now();
+alter table public.servicos
+  add column if not exists versao        integer     not null default 1,
+  add column if not exists atualizado_em timestamptz not null default now();
+
+-- sobe a versão a cada alteração (o valor enviado pela app é ignorado)
+create or replace function public.subir_versao()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  new.versao := old.versao + 1;
+  new.atualizado_em := now();
+  return new;
+end; $$;
+
+drop trigger if exists quintas_subir_versao on public.quintas;
+create trigger quintas_subir_versao
+  before update on public.quintas
+  for each row execute function public.subir_versao();
+
+drop trigger if exists servicos_subir_versao on public.servicos;
+create trigger servicos_subir_versao
+  before update on public.servicos
+  for each row execute function public.subir_versao();
+
 -- corrige as cópias que já estejam diferentes do email da conta
 update public.profiles p
   set email = u.email

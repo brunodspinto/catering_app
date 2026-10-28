@@ -87,6 +87,8 @@
     </header>
 
     <main class="content">
+      <!-- alterações por enviar / conflitos (gravar sem internet) -->
+      <div id="sync-avisos" class="sync-avisos hidden"></div>
 
       <!-- ---- RESUMO ---- -->
       <section id="view-resumo" class="view">
@@ -376,6 +378,20 @@
           <button type="submit" class="btn btn-primary">Guardar</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal resolver conflito (a mesma linha mudada em dois aparelhos sem rede) -->
+  <div id="modal-conflito" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-conflito-titulo">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h2 id="modal-conflito-titulo">Resolver conflito</h2>
+        <button type="button" class="icon-btn" data-close aria-label="Fechar e decidir mais tarde">✕</button>
+      </div>
+      <p class="muted conflito-sub" id="conflito-sub"></p>
+      <div id="conflito-corpo"></div>
+      <p id="conflito-erro" class="error hidden" role="alert"></p>
+      <div class="modal-actions" id="conflito-acoes"></div>
     </div>
   </div>
 

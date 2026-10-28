@@ -17,7 +17,8 @@ function carregarApp() {
   });
   return vm.runInContext(`${codigo}
     ;({ calcHoras, fmtHoras, validarHorario, totalServico, parseNum, lerEuros,
-        horaAgoraArredondada, dataSugeridaServico, escapeHtml, erroDeRede, msgErro })`, contexto);
+        horaAgoraArredondada, dataSugeridaServico, escapeHtml, erroDeRede, msgErro,
+        fundir, normalizar })`, contexto);
 }
 const app = carregarApp();
 
@@ -81,4 +82,46 @@ test("erroDeRede / msgErro: reconhece a falha de rede de cada browser", () => {
   assert.ok(!app.erroDeRede("new row violates check constraint"));
   assert.match(app.msgErro(new Error("TypeError: Load failed")), /Sem internet/);
   assert.equal(app.msgErro(new Error("outra coisa")), "Erro: outra coisa");
+});
+
+test("normalizar: horas e números do servidor comparam com os da app", () => {
+  assert.equal(app.normalizar("18:00:00"), "18:00");
+  assert.equal(app.normalizar("8.50"), 8.5);
+  assert.equal(app.normalizar(""), null);
+  assert.equal(app.normalizar("2026-10-31"), "2026-10-31");
+});
+
+const BASE = { quinta_id: "q1", quinta_nome: "Santa Cruz", valor_hora: "8.50", data: "2026-10-31",
+  hora_inicio: "18:00:00", hora_fim: "02:00:00", gorjeta: "0.00", estado: "pendente", notas: null, versao: 3 };
+
+test("fundir: cada aparelho mudou um campo diferente → junta sozinho", () => {
+  const local = { ...BASE, estado: "pago" };
+  const remoto = { ...BASE, gorjeta: "20.00", versao: 4 };
+  const r = app.fundir("servicos", BASE, local, remoto);
+  assert.deepEqual([...r.conflitos], []);
+  assert.equal(r.final.estado, "pago");
+  assert.equal(r.final.gorjeta, "20.00");
+  assert.deepEqual({ ...r.auto }, { estado: "local", gorjeta: "remoto" });
+});
+
+test("fundir: o mesmo campo mudou de forma diferente → conflito só nesse campo", () => {
+  const local = { ...BASE, hora_fim: "02:30", notas: "180 pax" };
+  const remoto = { ...BASE, hora_fim: "01:30:00", versao: 4 };
+  const r = app.fundir("servicos", BASE, local, remoto);
+  assert.deepEqual([...r.conflitos], ["hora_fim"]);
+  assert.equal(r.final.notas, "180 pax");
+});
+
+test("fundir: mudaram para o mesmo valor → não é conflito", () => {
+  const r = app.fundir("servicos", BASE, { ...BASE, hora_fim: "01:00" }, { ...BASE, hora_fim: "01:00:00" });
+  assert.deepEqual([...r.conflitos], []);
+});
+
+test("fundir: a quinta anda junta com o nome e o valor/hora", () => {
+  const local = { ...BASE, quinta_id: "q2", quinta_nome: "Vale", valor_hora: 9 };
+  const remoto = { ...BASE, quinta_id: "q3", quinta_nome: "Aveleda", valor_hora: "10.00", versao: 4 };
+  const r = app.fundir("servicos", BASE, local, remoto);
+  assert.deepEqual([...r.conflitos], ["quinta"]);
+  assert.equal(r.final.quinta_nome, "Vale");
+  assert.equal(r.final.valor_hora, 9);
 });

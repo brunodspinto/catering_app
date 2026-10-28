@@ -268,6 +268,7 @@ async function carregarTudo() {
   const cacheInicial = !state.servicos.length && !state.quintas.length ? lerCache() : null;
   if (cacheInicial) {
     aplicarCache(cacheInicial);
+    aplicarPendentes();
     renderTudo();
   }
   try {
@@ -283,17 +284,14 @@ async function carregarTudo() {
     state.quintas = q.data || [];
     state.servicos = servicos;
     state.profile = p.data || null;
-    // guardar para uso offline
-    try {
-      localStorage.setItem("bandeja_cache", JSON.stringify({
-        userId: state.user.id, quintas: state.quintas, servicos: state.servicos, profile: state.profile }));
-    } catch (e) {}
+    guardarCache();
+    aplicarPendentes();   // o que ainda não foi enviado continua a aparecer como está neste aparelho
   } catch (err) {
     if (desatualizado()) return;
     // não deu para carregar: mostrar a última cópia guardada (se houver) e dizer porquê
     const semRede = !navigator.onLine || erroDeRede(err && err.message);
     const cache = lerCache();
-    if (cache) aplicarCache(cache);
+    if (cache) { aplicarCache(cache); aplicarPendentes(); }
     toast(semRede
       ? (cache ? "Sem internet — a mostrar os últimos dados guardados."
                : "Sem internet e sem dados guardados neste aparelho. Liga-te à internet para veres os teus dados.")
@@ -301,6 +299,16 @@ async function carregarTudo() {
                : "Não foi possível carregar os teus dados. Fecha e volta a abrir a app."));
   }
   renderTudo();
+  if (sync.fila.length) sincronizar();
+}
+
+// guarda a cópia offline do que está na app (já com as alterações por enviar:
+// voltar a aplicá-las por cima não muda nada)
+function guardarCache() {
+  try {
+    localStorage.setItem("bandeja_cache", JSON.stringify({
+      userId: state.user.id, quintas: state.quintas, servicos: state.servicos, profile: state.profile }));
+  } catch (e) {}
 }
 
 // a cópia offline só serve se for do utilizador com sessão (num aparelho partilhado,
@@ -323,6 +331,8 @@ function limparDados() {
   state.quintas = [];
   state.servicos = [];
   state.profile = null;
+  sync.fila = [];
+  sync.conflitos = [];
 }
 
 // app reaberta depois de algum tempo em segundo plano: volta a buscar os dados
@@ -337,6 +347,7 @@ function aoMudarVisibilidade() {
 }
 
 function renderTudo() {
+  renderAvisosSync();
   renderResumo();
   renderServicos();
   renderQuintas();
@@ -417,7 +428,7 @@ function servicoItemHTML(s) {
     <div class="item item-clicavel">${itemBotaoHTML("servico", s.id, escapeHtml(s.quinta_nome || "—"),
         fmtDataLonga(s.data) + (s.notas ? " · " + escapeHtml(s.notas) : ""))}
       <div class="right"><span class="badge ${passou ? "atrasado" : "agendado"}"${passou
-        ? ` title="Abre o serviço e regista as horas"` : ""}>${passou ? "Já passou" : "Agendado"}</span></div>
+        ? ` title="Abre o serviço e regista as horas"` : ""}>${passou ? "Já passou" : "Agendado"}</span>${seloSync("servicos", s.id)}</div>
     </div>`;
   }
 
@@ -432,7 +443,7 @@ function servicoItemHTML(s) {
       <div class="right">
         <div class="amount money">${fmtEUR(t)}</div>
         <button type="button" class="badge ${s.estado}" data-pago="${s.id}" title="Tocar para alternar pago/por receber"
-          aria-label="${pago ? "Pago" : "Por receber"}: marcar como ${pago ? "por receber" : "pago"}">${pago ? "Pago" : "Por receber"}</button>
+          aria-label="${pago ? "Pago" : "Por receber"}: marcar como ${pago ? "por receber" : "pago"}">${pago ? "Pago" : "Por receber"}</button>${seloSync("servicos", s.id)}
       </div>
     </div>`;
 }
@@ -516,11 +527,9 @@ async function togglePagoServico(id, botao) {
     const s = state.servicos.find((x) => x.id === id);
     if (!s) return;
     const novo = s.estado === "pago" ? "pendente" : "pago";
-    const { error } = await sb.from("servicos").update({ estado: novo }).eq("id", id);
-    if (error) { toast(msgErro(error)); return; }
-    toast(novo === "pago" ? "Marcado como pago ✅" : "Marcado como por receber");
     focoPendente = `[data-pago="${id}"]`;   // o selo é redesenhado: devolver-lhe o foco
-    await carregarTudo();
+    registarAlteracao("servicos", "editar", id, { estado: novo });
+    toastGravado(novo === "pago" ? "Marcado como pago ✅" : "Marcado como por receber.");
   });
 }
 
@@ -536,7 +545,7 @@ function renderQuintas() {
     if (q.latitude != null && q.longitude != null) detalhes.push(`<span aria-hidden="true">📍</span> localização`);
     return `
     <div class="item item-clicavel">${itemBotaoHTML("quinta", q.id, escapeHtml(q.nome), detalhes.join(" · "))}
-      <div class="right"><span class="amount">${fmtEUR(q.valor_hora)}</span><div class="muted">por hora</div></div>
+      <div class="right"><span class="amount">${fmtEUR(q.valor_hora)}</span><div class="muted">por hora</div>${seloSync("quintas", q.id)}</div>
     </div>`;
   }).join("");
   $$("#quintas-lista [data-quinta]").forEach((el) => {
@@ -720,15 +729,11 @@ async function gravarServico(id, q, agendado, gorjeta) {
   // se este dia/quinta já estava agendado, conclui esse em vez de criar outro
   const ag = agendadoCorrespondente();
 
-  let error;
-  if (id)      ({ error } = await sb.from("servicos").update(dados).eq("id", id));
-  else if (ag) ({ error } = await sb.from("servicos").update(dados).eq("id", ag.id));
-  else         ({ error } = await sb.from("servicos").upsert({ id: state.novoServicoId, ...dados }));
-
-  if (error) { toast(msgErro(error)); return; }
   fecharModais();
-  toast(id ? "Serviço atualizado." : ag ? "Serviço agendado concluído ✅" : "Serviço guardado.");
-  await carregarTudo();
+  if (id)      registarAlteracao("servicos", "editar", id, dados);
+  else if (ag) registarAlteracao("servicos", "editar", ag.id, dados);
+  else         registarAlteracao("servicos", "novo", state.novoServicoId, dados);
+  toastGravado(id ? "Serviço atualizado." : ag ? "Serviço agendado concluído ✅" : "Serviço guardado.");
 }
 
 async function apagarServico(e) {
@@ -736,11 +741,9 @@ async function apagarServico(e) {
   if (!id) return;
   if (!confirm("Apagar este serviço?")) return;
   await executarMutacao(e.currentTarget, async () => {
-    const { error } = await sb.from("servicos").delete().eq("id", id);
-    if (error) { toast(msgErro(error)); return; }
     fecharModais();
-    toast("Serviço apagado.");
-    await carregarTudo();
+    registarAlteracao("servicos", "apagar", id);
+    toastGravado("Serviço apagado.");
   });
 }
 
@@ -1098,15 +1101,11 @@ async function guardarQuinta(e) {
       notas: $("#quinta-notas").value.trim() || null,
     };
 
-    // quinta nova: upsert com o id fixo do formulário (repetir o pedido não duplica)
-    let error;
-    if (id) ({ error } = await sb.from("quintas").update(dados).eq("id", id));
-    else    ({ error } = await sb.from("quintas").upsert({ id: state.novaQuintaId, ...dados }));
-
-    if (error) { toast(msgErro(error)); return; }
+    // quinta nova: o id fixo do formulário (repetir o pedido não duplica)
     fecharModais();
-    toast(id ? "Quinta atualizada." : "Quinta guardada.");
-    await carregarTudo();
+    if (id) registarAlteracao("quintas", "editar", id, dados);
+    else    registarAlteracao("quintas", "novo", state.novaQuintaId, dados);
+    toastGravado(id ? "Quinta atualizada." : "Quinta guardada.");
   });
 }
 
@@ -1115,12 +1114,429 @@ async function apagarQuinta(e) {
   if (!id) return;
   if (!confirm("Apagar esta quinta? Os serviços antigos mantêm-se com o nome guardado.")) return;
   await executarMutacao(e.currentTarget, async () => {
-    const { error } = await sb.from("quintas").delete().eq("id", id);
-    if (error) { toast(msgErro(error)); return; }
     fecharModais();
-    toast("Quinta apagada.");
-    await carregarTudo();
+    registarAlteracao("quintas", "apagar", id);
+    toastGravado("Quinta apagada.");
   });
+}
+
+/* ============================================================
+   GRAVAR SEM INTERNET — fila de alterações e conflitos
+   ============================================================ */
+// Serviços e quintas gravam-se sempre por aqui: a alteração aparece logo na app, fica
+// guardada no telemóvel e entra numa fila que é enviada quando houver rede.
+// No servidor cada linha tem uma "versao" que sobe a cada alteração. Uma alteração da fila
+// diz em que versão se baseou e só é aceite se a linha ainda estiver nessa versão; se não
+// estiver, outro aparelho mexeu-lhe entretanto: a app junta as duas alterações sozinha e
+// só pergunta quando o MESMO campo ficou diferente nos dois aparelhos.
+
+// campos comparados em cada tabela; os do mesmo grupo andam juntos
+// (escolher a quinta de um serviço traz também o nome e o valor/hora dessa quinta)
+const GRUPOS = {
+  servicos: {
+    quinta: ["quinta_id", "quinta_nome", "valor_hora"], data: ["data"],
+    hora_inicio: ["hora_inicio"], hora_fim: ["hora_fim"], gorjeta: ["gorjeta"],
+    estado: ["estado"], notas: ["notas"],
+  },
+  quintas: {
+    nome: ["nome"], valor_hora: ["valor_hora"], hora_inicio_padrao: ["hora_inicio_padrao"],
+    localizacao: ["latitude", "longitude"], notas: ["notas"],
+  },
+};
+const ROTULOS = {
+  quinta: "Quinta", data: "Data", hora_inicio: "Hora de entrada", hora_fim: "Hora de saída",
+  gorjeta: "Gorjeta", estado: "Estado", notas: "Notas", nome: "Nome", valor_hora: "Valor à hora",
+  hora_inicio_padrao: "Hora habitual de início", localizacao: "Localização",
+};
+
+// fila: alterações por enviar, pela ordem em que foram feitas
+//   { tabela, tipo: "novo" | "editar" | "apagar", id, base, dados, quando }
+//   base = a linha como estava no servidor (com a versão) quando se começou a mudar
+// conflitos: alterações que precisam de uma decisão (ver resolverConflito)
+const sync = { fila: [], conflitos: [], aEnviar: false };
+
+const copia = (x) => (x == null ? null : JSON.parse(JSON.stringify(x)));
+const listaDe = (tabela) => (tabela === "servicos" ? state.servicos : state.quintas);
+const linhaAtual = (tabela, id) => listaDe(tabela).find((x) => x.id === id) || null;
+
+// só os campos que a app grava (sem versao, user_id, created_at…)
+function camposDe(tabela, linha) {
+  const out = {};
+  for (const campos of Object.values(GRUPOS[tabela]))
+    for (const c of campos) out[c] = linha ? linha[c] ?? null : null;
+  return out;
+}
+
+// valores comparáveis: o servidor devolve "18:00:00" e "8.50" onde a app tem "18:00" e 8.5
+function normalizar(v) {
+  if (v == null || v === "") return null;
+  if (typeof v === "string") {
+    if (/^\d{2}:\d{2}(:\d{2})?$/.test(v)) return v.slice(0, 5);
+    if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v);
+  }
+  return v;
+}
+const valorGrupo = (linha, campos) => JSON.stringify(campos.map((c) => normalizar(linha && linha[c])));
+
+// junta a alteração deste aparelho (base → local) com a do servidor (base → remoto), grupo a grupo:
+//   só um dos lados mudou (ou mudaram igual) → fica esse;  mudaram os dois, diferente → conflito
+// devolve { final, auto: { grupo: "local" | "remoto" }, conflitos: [grupo] }
+// (nos grupos em conflito, final fica com o valor deste aparelho)
+function fundir(tabela, base, local, remoto) {
+  const final = {}, auto = {}, conflitos = [];
+  for (const [grupo, campos] of Object.entries(GRUPOS[tabela])) {
+    const b = valorGrupo(base, campos), l = valorGrupo(local, campos), r = valorGrupo(remoto, campos);
+    let origem;
+    if (l === b || l === r) origem = "remoto";
+    else if (r === b) origem = "local";
+    else { origem = "local"; conflitos.push(grupo); }
+    if (!conflitos.includes(grupo)) {
+      if (l !== b && r === b) auto[grupo] = "local";
+      else if (r !== b && l === b) auto[grupo] = "remoto";
+    }
+    for (const c of campos) final[c] = (origem === "local" ? local : remoto)[c] ?? null;
+  }
+  return { final, auto, conflitos };
+}
+
+// mostra a alteração na app (dados = null: apagar)
+function aplicarLocal(tabela, id, dados) {
+  const antiga = linhaAtual(tabela, id);
+  // só alguns campos de uma linha que não está carregada (ex.: telemóvel sem cópia): nada a mostrar
+  if (dados && !antiga && !(tabela === "servicos" ? dados.data : dados.nome)) return;
+  const lista = listaDe(tabela).filter((x) => x.id !== id);
+  if (dados) lista.push({ ...antiga, ...dados, id });
+  if (tabela === "servicos") state.servicos = lista.sort((a, b) => b.data.localeCompare(a.data));
+  else state.quintas = lista.sort((a, b) => a.nome.localeCompare(b.nome, "pt"));
+}
+
+// põe por cima dos dados carregados tudo o que ainda não chegou ao servidor
+function aplicarPendentes() {
+  for (const op of sync.fila) aplicarLocal(op.tabela, op.id, op.tipo === "apagar" ? null : op.dados);
+  // em conflito: até decidires, a app mostra a versão deste telemóvel
+  for (const c of sync.conflitos) aplicarLocal(c.tabela, c.id, c.tipo === "apagado-local" ? null : c.local);
+}
+
+// ---------- guardar a fila no telemóvel (por utilizador) ----------
+const chaveSync = (userId) => "bandeja_sync_" + userId;
+function guardarSync() {
+  if (!state.user) return;
+  try {
+    localStorage.setItem(chaveSync(state.user.id),
+      JSON.stringify({ fila: sync.fila, conflitos: sync.conflitos }));
+  } catch (e) {}
+}
+function lerSync() {
+  try {
+    const s = JSON.parse(localStorage.getItem(chaveSync(state.user.id))) || {};
+    sync.fila = s.fila || [];
+    sync.conflitos = s.conflitos || [];
+  } catch (e) { sync.fila = []; sync.conflitos = []; }
+  sync.fila.forEach((op) => { delete op.aEnviar; });   // um envio interrompido volta à fila
+}
+
+// "Guardado." com rede; sem rede avisa que fica para enviar depois
+function toastGravado(msg) {
+  toast(navigator.onLine ? msg : `${msg} Fica neste telemóvel e envia quando houver rede.`);
+}
+
+// regista uma alteração: aparece já na app, fica guardada e tenta enviar
+//   tipo "novo" (id gerado no formulário), "editar" (dados podem ser só alguns campos), "apagar"
+function registarAlteracao(tabela, tipo, id, dados = null) {
+  const conflito = sync.conflitos.find((c) => c.tabela === tabela && c.id === id);
+  if (conflito) absorverEmConflito(conflito, tipo, dados);
+  else juntarNaFila({ tabela, tipo, id, dados: dados && { ...dados }, quando: Date.now() });
+  aplicarLocal(tabela, id, tipo === "apagar" ? null : dados);
+  depoisDeMudar();
+  sincronizar();
+}
+
+function depoisDeMudar() {
+  guardarSync();
+  if (state.user) guardarCache();
+  renderTudo();
+}
+
+// junta a alteração à que já estava na fila para a mesma linha (enquanto essa não está a
+// ser enviada); senão acrescenta-a, com a versão atual como base
+function juntarNaFila(nova) {
+  const i = sync.fila.findIndex((op) => op.tabela === nova.tabela && op.id === nova.id && !op.aEnviar);
+  const op = i === -1 ? null : sync.fila[i];
+  if (op && nova.tipo === "apagar") {
+    if (op.tipo === "novo") sync.fila.splice(i, 1);   // nunca chegou ao servidor: basta esquecê-la
+    else Object.assign(op, { tipo: "apagar", dados: null, quando: nova.quando });
+    return;
+  }
+  if (op) { op.dados = { ...op.dados, ...nova.dados }; op.quando = nova.quando; return; }
+  // uma alteração anterior desta linha ainda vai a caminho: a base é o que o servidor devolver
+  const aCaminho = sync.fila.some((x) => x.tabela === nova.tabela && x.id === nova.id);
+  if (aCaminho) nova.baseDoAnterior = true;
+  else if (nova.tipo !== "novo") nova.base = copia(linhaAtual(nova.tabela, nova.id));
+  sync.fila.push(nova);
+}
+
+// mexer numa linha que está em conflito: a mudança entra na versão deste telemóvel
+function absorverEmConflito(c, tipo, dados) {
+  if (tipo === "apagar") {
+    sync.conflitos = sync.conflitos.filter((x) => x !== c);
+    // apagada no outro aparelho e agora aqui também: não há nada a decidir
+    if (c.remoto) sync.fila.push({ tabela: c.tabela, tipo: "apagar", id: c.id, base: c.remoto,
+                                   dados: null, quando: Date.now() });
+    return;
+  }
+  c.local = { ...c.local, ...dados };
+  c.quando = Date.now();
+}
+
+// ---------- enviar ----------
+// tenta enviar a fila toda, por ordem. Sem rede pára e fica para depois.
+async function sincronizar() {
+  if (sync.aEnviar || !state.user || !navigator.onLine || !sync.fila.length) return;
+  sync.aEnviar = true;
+  let mudou = false;
+  try {
+    while (sync.fila.length) {
+      const op = sync.fila[0];
+      op.aEnviar = true;
+      let r;
+      try {
+        r = await enviarOp(op);
+      } catch (err) {
+        delete op.aEnviar;
+        if (!navigator.onLine || erroDeRede(err && err.message)) break;   // fica para quando houver rede
+        // recusada pela base de dados (não acontece com dados validados pela app): desiste dela
+        // e das que dependiam dela; os dados certos voltam a ser carregados do servidor
+        sync.fila = sync.fila.filter((x) => x !== op && !(x.baseDoAnterior && x.tabela === op.tabela && x.id === op.id));
+        toast("Uma alteração não foi aceite e foi desfeita: " + traduzErro(err.message || String(err)));
+        mudou = true;
+        guardarSync();
+        continue;
+      }
+      delete op.aEnviar;
+      if (r.repetir) { guardarSync(); continue; }   // juntou com o outro aparelho: envia a versão junta
+      sync.fila.shift();
+      const seguintes = sync.fila.filter((x) => x.baseDoAnterior && x.tabela === op.tabela && x.id === op.id);
+      if (r.conflito) {
+        sync.conflitos.push(r.conflito);
+        // o que se mudou depois (com esta já a caminho) entra na versão deste telemóvel
+        for (const x of seguintes) absorverEmConflito(r.conflito, x.tipo, x.dados);
+        sync.fila = sync.fila.filter((x) => !seguintes.includes(x));
+      } else if (r.linha) {
+        // as alterações feitas entretanto partem da versão que o servidor acabou de guardar
+        for (const x of seguintes) { delete x.baseDoAnterior; x.base = r.linha; }
+      } else {
+        sync.fila = sync.fila.filter((x) => !seguintes.includes(x));   // a linha foi apagada
+      }
+      mudou = true;
+      guardarSync();
+    }
+  } finally {
+    sync.aEnviar = false;
+  }
+  if (mudou) await carregarTudo();
+  else renderAvisosSync();
+}
+
+// envia uma alteração. Devolve { linha } (aceite: a linha como ficou no servidor),
+// { repetir: true } (outro aparelho mexeu; a op foi juntada com essa mudança e vai outra vez)
+// ou { conflito } (é preciso decidir)
+async function enviarOp(op) {
+  const tabela = sb.from(op.tabela);
+  if (op.tipo === "novo") {
+    const { data, error } = await tabela.upsert({ id: op.id, ...op.dados }).select().maybeSingle();
+    if (error) throw error;
+    return { linha: data };
+  }
+  const versao = op.base && op.base.versao;
+  let pedido = (op.tipo === "apagar" ? tabela.delete() : tabela.update(op.dados)).eq("id", op.id);
+  if (versao != null) pedido = pedido.eq("versao", versao);
+  const { data, error } = await pedido.select();
+  if (error) throw error;
+  if (data && data.length) return { linha: op.tipo === "apagar" ? null : data[0] };
+
+  // nada mudou no servidor: a linha já não está naquela versão (ou já não existe)
+  const { data: remoto, error: e2 } = await sb.from(op.tabela).select("*").eq("id", op.id).maybeSingle();
+  if (e2) throw e2;
+  const base = { tabela: op.tabela, id: op.id, base: op.base, remoto, quando: op.quando };
+  if (op.tipo === "apagar") {
+    // apagada aqui; no outro aparelho também (nada a fazer) ou foi mudada (pergunta)
+    return remoto ? { conflito: { ...base, tipo: "apagado-local", local: null } } : { linha: null };
+  }
+  const local = { ...op.base, ...op.dados };
+  if (!remoto) return { conflito: { ...base, tipo: "apagado-remoto", local } };
+  const { final, auto, conflitos } = fundir(op.tabela, op.base, local, remoto);
+  if (!conflitos.length) {
+    op.base = remoto;
+    op.dados = final;
+    return { repetir: true };
+  }
+  return { conflito: { ...base, tipo: "campos", local, auto, campos: conflitos } };
+}
+
+// ---------- avisos e selos ----------
+function estadoSync(tabela, id) {
+  if (sync.conflitos.some((c) => c.tabela === tabela && c.id === id)) return "conflito";
+  if (sync.fila.some((op) => op.tabela === tabela && op.id === id)) return "pendente";
+  return null;
+}
+function seloSync(tabela, id) {
+  const e = estadoSync(tabela, id);
+  if (e === "conflito") return `<span class="sync-selo conflito">Conflito</span>`;
+  if (e === "pendente") return `<span class="sync-selo">Por enviar</span>`;
+  return "";
+}
+
+function renderAvisosSync() {
+  const box = $("#sync-avisos");
+  const n = sync.fila.length, nc = sync.conflitos.length;
+  let html = "";
+  if (n) html += `
+    <div class="sync-aviso pendente" role="status">
+      <span aria-hidden="true">⟳</span>
+      <span><b>${n} ${n === 1 ? "alteração" : "alterações"} por enviar</b> · ${navigator.onLine
+        ? "a enviar…" : "guardadas neste telemóvel, enviam sozinhas quando houver rede"}</span>
+    </div>`;
+  if (nc) html += `
+    <button type="button" class="sync-aviso conflito" id="sync-resolver">
+      <span aria-hidden="true">⚠</span>
+      <span><b>${nc} ${nc === 1 ? "alteração precisa" : "alterações precisam"} de ti</b> — foi mudado nos dois aparelhos. <u>Resolver</u></span>
+    </button>`;
+  box.innerHTML = html;
+  box.classList.toggle("hidden", !html);
+  const btn = $("#sync-resolver");
+  if (btn) btn.addEventListener("click", () => abrirConflito());
+}
+
+// ---------- resolver um conflito ----------
+let conflitoAberto = null;   // { c, escolhas: { grupo: "local" | "remoto" } }
+
+function fmtGrupo(tabela, grupo, linha) {
+  if (!linha) return "—";
+  const v = linha[GRUPOS[tabela][grupo][0]];
+  switch (grupo) {
+    case "quinta": return linha.quinta_nome || "—";
+    case "data": return v ? fmtDataLonga(v) : "—";
+    case "hora_inicio": case "hora_fim": case "hora_inicio_padrao": return v ? String(v).slice(0, 5) : "—";
+    case "gorjeta": case "valor_hora": return fmtEUR(v);
+    case "estado": return { agendado: "Agendado", pendente: "Por receber", pago: "Pago" }[v] || "—";
+    case "localizacao": return linha.latitude != null ? "Guardada" : "Sem localização";
+    default: return v ? String(v) : "—";
+  }
+}
+
+function tituloConflito(c) {
+  const l = c.local || c.remoto || c.base || {};
+  return c.tabela === "servicos"
+    ? `${l.quinta_nome || "—"} · ${l.data ? fmtDataLonga(l.data) : ""}`
+    : `Quinta · ${l.nome || "—"}`;
+}
+
+// lista "Campo: antes → depois" do que um lado mudou em relação à base
+function mudancasHTML(tabela, de, para) {
+  const linhas = Object.entries(GRUPOS[tabela])
+    .filter(([, campos]) => valorGrupo(de, campos) !== valorGrupo(para, campos))
+    .map(([g]) => `<div class="sub">${ROTULOS[g]}: ${escapeHtml(fmtGrupo(tabela, g, de))} → <b>${escapeHtml(fmtGrupo(tabela, g, para))}</b></div>`);
+  return linhas.join("") || `<div class="sub">Sem mudanças nos campos.</div>`;
+}
+
+function abrirConflito() {
+  const c = sync.conflitos[0];
+  if (!c) { fecharModais(); return; }
+  // sugestão: em cada campo, o valor do aparelho onde se mexeu por último
+  const remotoEm = c.remoto && c.remoto.atualizado_em ? Date.parse(c.remoto.atualizado_em) : 0;
+  const sugestao = c.quando >= remotoEm ? "local" : "remoto";
+  conflitoAberto = { c, escolhas: Object.fromEntries((c.campos || []).map((g) => [g, sugestao])) };
+  limparErroForm("conflito-erro");
+  renderConflito();
+  if ($("#modal-conflito").classList.contains("hidden")) abrirModal("#modal-conflito");
+}
+
+function renderConflito() {
+  const { c, escolhas } = conflitoAberto;
+  const n = sync.conflitos.length;
+  $("#conflito-sub").textContent = tituloConflito(c) + (n > 1 ? ` · 1 de ${n}` : "");
+  let html = "";
+  if (c.tipo === "campos") {
+    const auto = Object.entries(c.auto || {});
+    if (auto.length) html += `<div class="conflito-lbl">Juntado sozinho</div>` + auto.map(([g, origem]) =>
+      `<div class="conflito-auto">✓ ${ROTULOS[g]}: ${escapeHtml(fmtGrupo(c.tabela, g, origem === "local" ? c.local : c.remoto))}
+        — ${origem === "local" ? "deste telemóvel" : "do outro aparelho"}</div>`).join("");
+    for (const g of c.campos) {
+      html += `<div class="conflito-lbl" id="conflito-lbl-${g}">${ROTULOS[g]} — escolhe uma</div>
+        <div class="conflito-opts" role="group" aria-labelledby="conflito-lbl-${g}">` +
+        [["local", "Este telemóvel", c.local], ["remoto", "Outro aparelho", c.remoto]].map(([lado, nome, linha]) => `
+          <button type="button" class="conflito-opt${escolhas[g] === lado ? " sel" : ""}" data-grupo="${g}" data-lado="${lado}"
+            aria-pressed="${escolhas[g] === lado}">
+            <span class="q">${nome}</span><span class="v">${escapeHtml(fmtGrupo(c.tabela, g, linha))}</span>
+          </button>`).join("") + `</div>`;
+    }
+    if (c.tabela === "servicos") {
+      const f = versaoEscolhida();
+      const horas = calcHoras(normalizar(f.hora_inicio), normalizar(f.hora_fim));
+      html += `<div class="conflito-total"><span>${f.estado === "agendado" ? "Agendado"
+        : `${normalizar(f.hora_inicio) || "--:--"}–${normalizar(f.hora_fim) || "--:--"} · ${fmtHoras(horas)}`}</span>
+        <span class="money">${f.estado === "agendado" ? "" : fmtEUR(totalServico({ ...f,
+          hora_inicio: normalizar(f.hora_inicio), hora_fim: normalizar(f.hora_fim) }))}</span></div>`;
+    }
+    $("#conflito-acoes").innerHTML = `
+      <button type="button" class="btn btn-ghost" data-acao="depois">Decidir mais tarde</button>
+      <button type="button" class="btn btn-primary" data-acao="guardar">Guardar esta versão</button>`;
+  } else if (c.tipo === "apagado-remoto") {
+    html += `<div class="conflito-caixa"><span class="badge atrasado">Apagado no outro aparelho</span>
+      <p>Mas neste telemóvel mudaste-o enquanto estavas sem rede:</p>${mudancasHTML(c.tabela, c.base, c.local)}</div>`;
+    $("#conflito-acoes").innerHTML = `
+      <button type="button" class="btn btn-ghost danger" data-acao="apagar">Apagar mesmo</button>
+      <button type="button" class="btn btn-primary" data-acao="manter">Manter (com as mudanças)</button>`;
+  } else {
+    html += `<div class="conflito-caixa"><span class="badge atrasado">Mudado no outro aparelho</span>
+      <p>Apagaste-o neste telemóvel, mas no outro aparelho foi mudado:</p>${mudancasHTML(c.tabela, c.base, c.remoto)}</div>`;
+    $("#conflito-acoes").innerHTML = `
+      <button type="button" class="btn btn-ghost danger" data-acao="apagar">Apagar mesmo</button>
+      <button type="button" class="btn btn-primary" data-acao="manter">Manter (com essas mudanças)</button>`;
+  }
+  $("#conflito-corpo").innerHTML = html;
+}
+
+// a versão final com as escolhas feitas (campos juntados sozinhos + escolhidos à mão)
+function versaoEscolhida() {
+  const { c, escolhas } = conflitoAberto;
+  const { final } = fundir(c.tabela, c.base, c.local, c.remoto);
+  for (const [g, lado] of Object.entries(escolhas))
+    for (const campo of GRUPOS[c.tabela][g]) final[campo] = (lado === "local" ? c.local : c.remoto)[campo] ?? null;
+  return final;
+}
+
+// a combinação escolhida tem de continuar a ser um serviço válido
+function erroVersao(tabela, f) {
+  if (tabela !== "servicos" || f.estado === "agendado") return null;
+  if (!f.hora_inicio || !f.hora_fim) return "Com esta escolha o serviço fica sem horas. Escolhe as horas do outro lado ou o estado.";
+  return validarHorario(normalizar(f.hora_inicio), normalizar(f.hora_fim)).erro || null;
+}
+
+function acaoConflito(acao) {
+  const { c } = conflitoAberto;
+  if (acao === "depois") { fecharModais(); return; }
+  if (c.tipo === "campos" && acao === "guardar") {
+    const final = versaoEscolhida();
+    const erro = erroVersao(c.tabela, final);
+    if (erro) return erroForm("conflito-erro", erro);
+    // a decisão parte da versão atual do servidor: se mudar outra vez entretanto, volta a juntar
+    sync.fila.push({ tabela: c.tabela, tipo: "editar", id: c.id, base: c.remoto, dados: final, quando: Date.now() });
+    aplicarLocal(c.tabela, c.id, final);
+  } else if (c.tipo === "apagado-remoto") {
+    if (acao === "manter") {
+      sync.fila.push({ tabela: c.tabela, tipo: "novo", id: c.id, dados: camposDe(c.tabela, c.local), quando: Date.now() });
+    } else aplicarLocal(c.tabela, c.id, null);
+  } else if (c.tipo === "apagado-local") {
+    if (acao === "apagar") {
+      sync.fila.push({ tabela: c.tabela, tipo: "apagar", id: c.id, base: c.remoto, dados: null, quando: Date.now() });
+    } else aplicarLocal(c.tabela, c.id, c.remoto);
+  }
+  sync.conflitos = sync.conflitos.filter((x) => x !== c);
+  toastGravado(acao === "apagar" ? "Apagado." : "Guardado ✅");
+  if (sync.conflitos.length) abrirConflito(); else fecharModais();
+  depoisDeMudar();
+  sincronizar();
 }
 
 /* ============================================================
@@ -1390,7 +1806,7 @@ async function guardarPerfil(e) {
     modoPerfil(false);
     renderPerfil();
     toast("Dados guardados! ✅");
-  });
+  }, { precisaRede: true });
 }
 
 async function trocarPassword(e) {
@@ -1421,7 +1837,7 @@ async function trocarPassword(e) {
     } finally {
       btn.textContent = "Alterar palavra-passe";   // mesmo que a ligação falhe a meio
     }
-  });
+  }, { precisaRede: true });
 }
 
 // vindo do link do email (recuperação): definir nova palavra-passe
@@ -1436,7 +1852,7 @@ async function guardarRecovery(e) {
     if (error) { toast(msgErro(error)); return; }
     fecharModais();
     toast("Palavra-passe definida! ✅ Já estás dentro.");
-  });
+  }, { precisaRede: true });
 }
 
 /* ============================================================
@@ -1520,11 +1936,12 @@ const mutacoesEmCurso = new WeakSet();
 
 // corre uma escrita na base de dados sem deixar repetir: enquanto o pedido não termina,
 // os botões do formulário ficam desativados e novos cliques/submits são ignorados
-async function executarMutacao(botao, fn) {
+// precisaRede: escritas que não passam pela fila (perfil, palavra-passe) só com rede
+async function executarMutacao(botao, fn, { precisaRede = false } = {}) {
   const chave = botao.form || botao;
   if (mutacoesEmCurso.has(chave)) return;
   // sem rede: avisa logo, sem esperar que o pedido falhe (o formulário fica aberto)
-  if (!navigator.onLine) { toast(MSG_SEM_REDE); return; }
+  if (precisaRede && !navigator.onLine) { toast(MSG_SEM_REDE); return; }
   mutacoesEmCurso.add(chave);
   const botoes = botao.form ? Array.from(botao.form.querySelectorAll("button")) : [botao];
   const desativados = botoes.filter((b) => !b.disabled);   // só reativa os que estavam ativos
@@ -1602,6 +2019,22 @@ function ligarEventos() {
   document.addEventListener("keydown", teclasJanelas);
   document.addEventListener("visibilitychange", aoMudarVisibilidade);
 
+  // gravar sem internet: a rede voltou → envia o que ficou guardado
+  window.addEventListener("online", () => { renderAvisosSync(); sincronizar(); });
+  window.addEventListener("offline", renderAvisosSync);
+  $("#conflito-corpo").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-grupo]");
+    if (!b) return;
+    conflitoAberto.escolhas[b.dataset.grupo] = b.dataset.lado;
+    limparErroForm("conflito-erro");
+    renderConflito();
+    $(`#conflito-corpo [data-grupo="${b.dataset.grupo}"][data-lado="${b.dataset.lado}"]`).focus();
+  });
+  $("#conflito-acoes").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-acao]");
+    if (b) acaoConflito(b.dataset.acao);
+  });
+
   // seletor de data (calendário)
   $$(".date-trigger").forEach((b) => b.addEventListener("click", () => abrirDatePicker(b)));
   $("#dp-prev").addEventListener("click", () => { DP.view = new Date(DP.view.getFullYear(), DP.view.getMonth() - 1, 1); dpRender(); });
@@ -1632,7 +2065,13 @@ function ligarEventos() {
     renderPerfil();          // desfaz alterações não guardadas
   });
   $("#form-password").addEventListener("submit", trocarPassword);
-  $("#conta-logout").addEventListener("click", () => sb.auth.signOut());
+  $("#conta-logout").addEventListener("click", () => {
+    const n = sync.fila.length + sync.conflitos.length;
+    if (n && !confirm(`Tens ${n} ${n === 1 ? "alteração que ainda não foi enviada" : "alterações que ainda não foram enviadas"}. `
+      + "Se saíres agora, perdem-se. Sair mesmo assim?")) return;
+    if (state.user) localStorage.removeItem(chaveSync(state.user.id));
+    sb.auth.signOut();
+  });
 }
 
 function mostrarApp(logado) {
@@ -1654,6 +2093,7 @@ function init() {
   sb.auth.onAuthStateChange((evt, session) => {
     if (evt === "PASSWORD_RECOVERY") {
       state.user = session ? session.user : null;
+      if (state.user) lerSync();
       mostrarApp(true);
       carregarTudo();
       abrirModal("#modal-recovery");   // pede a nova palavra-passe
@@ -1666,6 +2106,7 @@ function init() {
       state.user = session.user;
       if (mudouUtilizador) {
         limparDados();
+        lerSync();      // alterações deste utilizador que ficaram por enviar
         renderTudo();   // não deixar à vista os dados de outra conta enquanto carrega
         mostrarApp(true);
         carregarTudo();

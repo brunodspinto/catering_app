@@ -1,7 +1,7 @@
 /* ============================================================
    Bandeja — Service Worker (faz a app abrir offline)
    ============================================================ */
-const CACHE = "bandeja-v6";
+const CACHE = "bandeja-v7";
 const ASSETS = [
   "./",
   "./index.html",
